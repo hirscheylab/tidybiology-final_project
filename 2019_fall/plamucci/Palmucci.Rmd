@@ -1,0 +1,122 @@
+---
+title: "Tidybiology Final Project"
+author: "Julia Palmucci"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  html_document:
+    df_print: paged
+---
+## Load libraries, such as tidyverse and tidybiology
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(stringr)
+library(tidybiology)
+library(devtools)
+
+rm(list=ls()) 
+```
+
+## Import data
+### Proteins
+I have loaded the proteins dataset which includes protein sequence from the tidybiology library. This dataset includes the annotated protein-coding genes from the human genome. 
+### Subcellular location
+I also want to load the subcell dataset from tidybiology, which presents gene names, localization of the protein, and a confidence score.
+```{r import, include=FALSE}
+data(proteins)
+data(subcell)
+```
+
+## Take a `glimpse` into the proteins dataframe
+I now want to see the variable or column names for future use. 
+```{r glimpse}
+glimpse(proteins)
+```
+## Data Analysis
+I want to find all the proteins in the human genome that have a WD-repeat motif. Referencing figure 1 of Smith (2013) [accessible at: https://www.ncbi.nlm.nih.gov/books/NBK6426/figure/A76844/?report=objectonly], I identified the consensus sequence of the WD motif anchor in the sequences of the protein dataset.
+**[]s** mean "one of", **|** means "or", and **.** means "any character"
+```{r}
+str_which(proteins$sequence, "[LIVF][AVLI](S|T)[GASC][SGA].D.(T|S)[IVLA](K|R)[VLI][WFY](D|N)")
+```
+I first wanted to see if my consensus sequence returned any hits. Once I knew it would, I added another column to my proteins dataset
+```{r}
+proteins <- proteins %>% 
+  mutate(WD_repeat = str_detect(sequence,"[LIVF][AVLI](S|T)[GASC][SGA].D.(T|S)[IVLA](K|R)[VLI][WFY](D|N)"))
+glimpse(proteins)
+```
+#Filtering my data
+This returned a new column telling me whether a protein does (TRUE) or does not (FALSE) have my WD consensus sequence. I only care about the **TRUE** values, so I will filter them out. 
+
+```{r}
+WD_proteins <- proteins %>% 
+  filter(WD_repeat == "TRUE") 
+glimpse(WD_proteins)
+```
+It worked, now I have 61 observations of 9 variables instead of 20,000!
+
+## Integrating dataframes
+I am interested in knowing more about the protein localization, so I am going to utilize the subcell dataframe. First, I need to know what variables I am working with:
+
+```{r}
+glimpse(subcell)
+glimpse(WD_proteins)
+```
+I want to create a new dataframe that only has my WD proteins and their subcellular localization. Since both datasets share a "gene name" variable, I will use that to join my dataframes. The `inner_join` function will allow me to keep only what I am interested in.
+```{r}
+WD_localization <- inner_join(WD_proteins, subcell, by = "gene_name")
+WD_localization #open the dataframe
+```
+## Representing this information visually
+I created a bar graph to describe the number of WD proteins found in each subcellular location. The trickiest part was filling the bars according to the score. I wanted a gradient, which showed the highest scores as the most opaque and obvious color. For some reason, this was incredibly difficult. 
+```{r}
+k <- ggplot(WD_localization, aes(factor(location), fill = score)) 
+k + geom_bar() + 
+  labs(x = "Subcellular Location", y = "Number of WD Proteins", title = "Enrichment of WD Proteins in the Cytoplasm") + 
+  scale_fill_gradient() 
+
+#the scale_fill_gradient did not seem to do much of anything in my code
+ggplot(data = WD_localization) + 
+  geom_bar(mapping = aes(x = location, fill = score))
+```
+The gradient fill only applied to categories without overlapping numbers (if more than one protein in a location had a 5, the bar was shaded grey)
+
+## Final Graphs
+### WD Protein and Localization
+I found that `scale_fill_grey` worked, even if the continuous and gradient shading did not. I filled the bars based on "Score", which resulted in a nice shading. 
+```{r}
+WDLocal <- ggplot(WD_localization, aes(factor(location), fill = factor(score)))
+WDLocal + geom_bar() + 
+  labs(x = "Subcellular Location", y = "Number of WD Proteins", title = "Enrichment of WD Proteins in the Cytoplasm") + 
+  scale_fill_grey(start = 0.8, end = 0.2, breaks = 5, "Score") #starting with 0.8 and ending with 0.2 set the highest value to the darkest color
+ggsave("WDLocal.png")
+```
+### WD Proteins, Size, and Localization
+I then wanted to look more closely at the confidence score I had a tricky time working with. Instead of a bar plot, I chose a scatter plot using the jitter function to avoid overlapping points. I then based the size of the points on the length of the protein to give the graph another dimension.  
+
+```{r}
+ggplot(WD_localization) +
+  geom_jitter(aes(x= location, y = score, size = length), alpha = 0.3) + #transparency for easier viewing) +
+  facet_grid(. ~ location) + #split my graph based on organelle 
+  labs (x = NULL, y = "Confidence Score") +
+  theme_minimal()+
+  theme(axis.text.x = element_blank(), axis.ticks = element_blank())+ #remove the x axis ticks and labels
+  ggsave("WDLocalxLength.png")
+```
+
+## Conclusions
+WD proteins are enriched in the cytoplasm of human cells, with nearly half of all proteins identified localizing there. WD proteins include some G protein-coupled receptors (GPCRs), so the high degree of confidence shown in the handful of membrane proteins was not surprising. Interestingly, several small WD proteins are found in the nucleus, which was not expected.
+  
+## Prioritized follow-up studies
+WD proteins act as scaffold. Therefore, their enrichment in the cytoplasm was expected. However, it was interesting to see a large number of small WD proteins in the nucleus, many of which have no described function. I would follow-up on this subset of proteins by tagging them and then conducting a co-immunoprecipitation assay to isolate possible binding partners. It would be interested to find out what complexes these proteins are acting as a scaffold for. 
+
+## Acknolwedgements
+I referenced Akshay Bareja's "Introduction to dplyr" heavily while figuring out how to merge my dataframes. I also could not have done this without Stack Overflow and the wonderful instruction by Matt, Allie, and Akshay!
+
+#Session information for provenance and reproducibility
+```{r}
+
+utils:::print.sessionInfo(sessionInfo()[-8]) 
+
+```
+

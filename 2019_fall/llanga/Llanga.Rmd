@@ -1,0 +1,147 @@
+---
+title: "Tidybiology Final Project"
+author: "Telmo Llanga"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+---
+```{r setup, include=FALSE}
+library(tidyverse)
+library(tidybiology)
+library(dplyr)
+library(tidyr)
+
+#uncomment (or select) to clear environment; good for provenance
+rm(list=ls()) 
+```
+
+### Import Datasets
+Proteins and Genes were datasets included in the tidybiology package, proteins_genes_inner was created with an `inner_join` function which joined them both together. 
+
+```{r import, include=TRUE}
+
+data(proteins)
+data(genes)
+proteins_genes_inner <- inner_join(proteins, genes, by = "gene_name")
+
+```
+
+### Take a `glimpse` into the data in the dataframe
+The proteins_genes_inner dataset includes not only protein coding genes but also pseudogenes and other chromosomal gene like elements. In total it has 17 variables (columns), and 20038 observations.
+
+```{r}
+glimpse(proteins_genes_inner)
+```
+
+
+## Exploratory Data Analysis 
+```{r}
+#Interested in looking at the relationship between transcript length and protein length we plotted these variables on a graph
+
+ggplot(proteins_genes_inner, aes(length,transcript_length)) + geom_point(size=0.1) + xlim(0,4000)+ ylim(0,40000) + labs(x="Protein Length", y="Transcript Length")
+
+#To furhter explore these relationships we took a ratio of these variables to compare to other variables using the `mutate()` 
+
+proteins_genes_inner2<-mutate(proteins_genes_inner, Translated_ratio = (transcript_length/length))
+
+```
+
+### Some Data Cleaning 
+```{r echo=T, results='hide', warning=FALSE}
+
+#We used filter >3 to attempt some data cleaning based on the principle that it takes 3 nucleotides to encode for a single amino acid. 
+
+proteins_genes_inner3<-filter(proteins_genes_inner2, Translated_ratio > 3) 
+
+
+proteins_genes_inner4<-separate(proteins_genes_inner3, chromosome_scaffold_name, 
+                c("chrom", "Scaffold1","Scaffold2","Scaffold3"))
+
+proteins_genes_inner4$chrom <- as.numeric(as.character(proteins_genes_inner4$chrom))
+
+#We then go ahead and re-plot to visualize our data cleaning and to see if we can visualize any obvious chromosomal trends
+
+ggplot(proteins_genes_inner4, aes(length,transcript_length, color= chrom)) + geom_point(size=0.5, alpha=0.7) + xlim(0,4000)+ ylim(0,30000)+ labs(x="Protein Length", y="Transcript Length")+scale_color_gradient(low="red", high="yellow")
+
+```
+
+
+
+### New Variables, New Graphs
+
+We wanted to make more informative graphs, so in order to do this we binned data into groups using the `cut()` function to be further analyzed
+
+```{R, echo=TRUE, results='hide', warning=FALSE}
+
+#We add new variables Ratio_bins and Length_bins 
+
+proteins_genes_inner3$Ratio_bins<-cut(proteins_genes_inner3$Translated_ratio, c(0,5,10,15,20,25,30))
+
+proteins_genes_inner3$Length_bins<-cut(proteins_genes_inner3$length, c(3,500,1000,1500,2000,2500,3000,5000,20000), labels = c("<500","<1000","<1500","<2000","<2500","<3000","<5000","<40000"), right = TRUE)
+
+#We analyzed the Translated Ratio compared to protein lenght in a boxplot
+
+ggplot(proteins_genes_inner3) + geom_boxplot(aes(Length_bins,log(Translated_ratio), color=Length_bins)) + labs(x="Protein Length", y="Translated Ratio (log)") + guides(color = "none") + scale_color_brewer(palette="Set3") 
+
+```
+
+
+### More data cleaning, and a final graph
+```{R echo=TRUE, warning=FALSE, results='hide'}
+
+#Looking to explore if any particular somatic chromosomes have different ratios of translated protein to transcript lengths, we first needed to split the chromosome_scaffold name data column to obtain individual chromosomes and for this we use the separate() function.
+ 
+  proteins_genes_inner4<-separate(proteins_genes_inner3, chromosome_scaffold_name, 
+                c("chrom", "second","Scaffold","Scaffold_cont","Scaffold_cont2","Scaffold_cont3"))
+
+#We needed to further clean this data as it had some data types which made it difficult to plot, therefore we kept only numeric values by assigning N.A values to non-numeric values using the as.numeric() function.
+
+proteins_genes_inner4$chrom <- as.numeric(as.character(proteins_genes_inner4$chrom))
+
+#We then went ahead and plotted Translated_ratio relative to chromosome groups, and we see they are very similar to each other. 
+
+ggplot(proteins_genes_inner4, aes(chrom,log(Translated_ratio), group=chrom,color=chrom))+geom_jitter(size=0.01) + geom_boxplot(alpha=0.6 )+scale_color_gradientn(colours = rainbow(22))+labs(x="Chromosome",y="Translated Ratio(log)") +
+  scale_x_continuous(labels = c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22), breaks = c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22))
+ggsave("image.png")
+```
+
+
+### Final Statistics 
+
+To explore the more promising of our data exploratory graphs relating Translated_ratio to protein length, I went ahead and got some final statistics with more data-permisive non-parametric tests
+
+```{r final_statistics}
+
+kruskal.test(Translated_ratio ~ Length_bins, data = proteins_genes_inner3)
+
+```
+With a statistical difference between groups by a Krustal Wallis test, a comparison between all groups by a pairwise wilcox statistical test can narrow down if there are statistical differences between particular groups
+
+```{r Statistics }
+pairwise.wilcox.test(proteins_genes_inner3$Translated_ratio, proteins_genes_inner3$Length_bins,
+                 p.adjust.method = "BH")
+
+```
+We see a significant difference between smaller and larger protein groupings
+
+
+## Conclusions
+While we see no difference by chromosome, there seems to be a strong correlation of translated length to protein size. Further correlating these results to gene subsets and their genomic coordinate distribution along chromosomes may be of basic understanding of genome evolution.   
+  
+## Prioritized follow-up studies
+Repeat analysis with a dataset with the same variables to verify correlations.
+
+Further correlating these results to genomic coordinate distribution along chromosomes. 
+
+Analyzing subsets of genes relative to their location
+
+Carry out similar analysis with a dataset of experimentally verified promoter regions  
+
+## Acknolwedgements
+I would like to acknowledge our instructors for making this knowledge structured and accesible and everyone who has put together this technology platform to analyze data in an organized reproducible manner. 
+
+#Session information for provenance and reproducibility
+```{r, include=FALSE}
+#PROBABLY BEST TO LEAVE THIS HERE, BUT NO NEED TO PRINT IN THE FINAL REPORT.
+utils:::print.sessionInfo(sessionInfo()[-8]) 
+#You can remove an item from sessionInfo(), which is a list with a class attribute, by printing the resulting object omitting one of the list items (omitted list of packages installed, but not loaded)
+```
+

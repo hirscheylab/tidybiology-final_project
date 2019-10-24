@@ -1,0 +1,101 @@
+---
+title: "Tidybiology Final Project"
+author: "Mollie Sweeney"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output: pdf_document
+---
+## Load libraries, such as tidyverse and tidybiology
+```{r setup, eval=TRUE}
+#uncomment (or select) to clear environment; good for provenance
+library(tidyverse)
+library(tidybiology)
+```
+
+## Import data
+I am working with the chromosome data set, which includes information on human chromosomes including their length, protein coding genes, and RNA coding content among others items that we will see... 
+```{r import, eval=TRUE}
+data(chromosome)
+```
+
+## Take a `glimpse` into the data in the dataframe
+Taking a glimpse into the data, I thought it was interesting that there were so many RNA columns included and thought about analyzing those for my final project. 
+```{r glimpse}
+glimpse(chromosome)
+```
+## EDA
+I started with a simple bar graph that I think we have done before in class, trying to get ideas... 
+```{r}
+ggplot(chromosome, aes(id)) +
+  geom_bar(aes(weight=totallongnc_rna))
+```
+
+## EDA Graph  
+At this point, I was hoping to make a fancy stacked bar graph with different sections indicating different types of RNA on each chromosome. Unfortunately, with the time I had I was not able to work out how to do this... 
+
+```{r data choice, echo=TRUE, eval=TRUE}
+ggplot(chromosome, aes(id)) +
+  geom_bar(aes(weight=protein_codinggenes, fill=totallongnc_rna))
+
+chromosome2 <- chromosome %>%
+  mutate(total_RNA = totallongnc_rna + totalsmallnc_rna)
+```
+  
+  
+So, going in a new direction I decided to total up the long and short non-coding RNA on each chromosome to get a more overall picture of the RNA content of each. 
+
+
+```{r zoning in, echo=TRUE, eval=TRUE}
+chromosome2 <- chromosome %>%
+  mutate(total_RNA = totallongnc_rna + totalsmallnc_rna)
+
+ggplot(chromosome2, aes(basepairs, total_RNA)) +
+  geom_smooth()
+
+ggplot(chromosome2, aes(basepairs, total_RNA)) +
+  geom_smooth() +
+  geom_point() +
+  geom_label(data = chromosome2, aes(label = id))
+
+
+```
+I was interested at the fact that there seemed to be an inflection point in the data between the shorter chromosomes and the longer chromosomes. This occured when I plotted the total RNA against basepairs, mm, and protein coding genes, although only basepairs is shown here.
+
+## Final Graph
+I decided to use dplyr again to find the percentage of each chromosome that encoded NC RNA. Interestingly, I found that when I plotted this against basepairs, there was a split in the trend between shorter and longer chromosomes. 
+
+```{r final_graph}
+chromosome3 <- chromosome2 %>%
+  mutate(perc_RNA = total_RNA/basepairs)
+
+ggplot (chromosome3, aes(basepairs, perc_RNA)) +
+  geom_smooth() +
+  geom_label(data = chromosome3, aes(label = id)) +
+  theme_classic() +
+  labs(title = "Non-coding RNA Variation Across Chromosomes", 
+       subtitle = "Y, 19, and 17 are strongest outliers", 
+       y = "Percentage Non-coding RNA", 
+       x = "Total Basepairs")
+
+
+```
+
+## Conclusions
+**Shorter chromosomes have a higher variation** in what percent of their **basepairs produce non-coding RNA**. As the length of the chromosome increases, the trend evens out and becomes more consistent. For the shorter chromosomes, there really isn't even a trend. 
+
+Of course, looking at the **Y-axis** reveals that this trend is a bit **subtle** - there is a very small difference overall and it is exaggerated by the scale this is graphed on. 
+
+Still, I think it's interesting that you see such greater variation (even on a small scale) in the shorter chromosomes. It would be great to know **the total length of sequence dedicated to RNA** to get a better idea of what ratio of each chromosome encodes RNA. 
+  
+## Prioritized follow-up studies
+It would be interesting to take a look into how this type of variation pops up, and whether it's true that the smallest chromosomes have the most in general... perhaps it's because they are more sensitive to large chunks of the chromosome shifting during cross over events. 
+
+## Acknolwedgements
+Matt's example gave me the idea to look at percentage instead of just the raw numbers. I also found the ggplot "cheatsheet" VERY helpful for this project. 
+
+#Session information for provenance and reproducibility
+```{r}
+#PROBABLY BEST TO LEAVE THIS HERE, BUT NO NEED TO PRINT IN THE FINAL REPORT.
+utils:::print.sessionInfo(sessionInfo()[-8]) 
+#You can remove an item from sessionInfo(), which is a list with a class attribute, by printing the resulting object omitting one of the list items (omitted list of packages installed, but not loaded)
+```
+

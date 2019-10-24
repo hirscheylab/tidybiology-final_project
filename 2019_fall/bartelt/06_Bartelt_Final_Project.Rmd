@@ -1,0 +1,125 @@
+---
+title: "Tidybiology Final Project"
+author: "Luke Bartelt"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+---
+## Libraries Required
+```{r setup, message=FALSE}
+library(tidyverse)
+library(tidybiology)
+```
+```{r, include=FALSE}
+#uncomment (or select) to clear environment; good for provenance
+rm(list=ls()) 
+```
+
+### Data imported
+First I imported the subcell dataset from the tidybiology library.
+
+```{r import}
+data("subcell")
+```
+
+### Subcell dataset
+I observed the subcell dataset contained a 20,840 x 5 dataframe that lists all human proteins, their corresponding gene name, their Gene Ontology assignment, a score for subcellular speceficity, and what subcellular location they are located.
+
+```{r glimpse, echo=FALSE}
+glimpse(subcell)
+```
+
+## Exploratory Data Analysis (EDA.pt.1)
+I then got interested in what chromosome these gene came from, so I also loaded the genes dataset. By using both of these datasets, I could link the subcellular localization of each gene to its chromosome of origin through the common gene_name column.
+
+```{r}
+data("genes")
+glimpse(genes)
+```
+
+## EDA.pt.2  
+In order to link the two datasets I first wanted to make sure the gene names were the same in each dataset, so I performed an intersect function on the gene_name column.
+
+```{r}
+# pipe into glimpse to get number of intersections, since intersect exceded max print length
+intersect(genes$gene_name, subcell$gene_name) %>% glimpse()
+```
+This showed me that 18,688 genes would be retained after joining the two datasets.
+
+## EDA.pt.3
+Want to do an inner join function on gene_name so that my new dataset is not littered with "NAs" where gene_names differ. 
+```{r}
+genes.subcell <- inner_join(genes, subcell, by = "gene_name")
+```
+
+## EDA.pt.4
+I then wanted to plot what proportion of genes from each chromosome were localized to a specific subcellular location to see if there were any interesting differences. For this a percent stacked bar chart made sense to me. I found a way to do this with ggplot2 within `geom_bar`.
+
+```{r}
+# load ggplot 
+library(ggplot2)
+
+# construct bar chart with position=fill aes setting
+ggplot(genes.subcell, aes(fill='location', x='chromosome_scaffold_name', y='location')) +
+  geom_bar(position="fill", stat='identity')
+```
+
+This failed horribly, because I did not have numerical values for each subcellular localization.
+
+## EDA.pt.5
+So I made a new dataframe that took advantage of the `group_by` and `summarise` functions to count observations by each chromosome. 
+
+```{r}
+location.counts <- genes.subcell %>% group_by(chromosome_scaffold_name, location) %>% summarise(n=n()) %>% as.data.frame()
+location.counts %>% head()
+```
+
+## EDA.pt.6
+
+chromosome_scaffold_name type is character so need to convert to numeric.
+
+```{r, echo=FALSE, warning=FALSE}
+location.counts$chromosome_scaffold_name <- as.numeric(location.counts$chromosome_scaffold_name)
+# this gives NA for anything not directly numeric convertible
+
+location.counts1 <- na.omit(location.counts)
+#omit NAs - unfortunately removes X and Y :/
+
+location.counts1 %>% head()
+```
+
+## Final Graph
+
+Created a Stacked Bar Chart with 'geom_bar' setting 'aes(fill=location)' column to stack the bar chart by subcellular location and set 'position=fill' to make the bar proportional rather than vary by magnitude. I imported a custom color panel to make it shine.
+
+```{r, include=FALSE}
+library(RColorBrewer)
+# Define the number of colors you want
+nb.cols <- 15
+mycolors <- colorRampPalette(brewer.pal(11, "Spectral"))(nb.cols)
+```
+
+
+```{r, echo=FALSE}
+# construct bar chart with position=fill aes setting
+ggplot(location.counts1, aes(fill=location, x=chromosome_scaffold_name, y=1)) +
+  geom_bar(position="fill", stat='identity') +
+  scale_x_continuous(breaks = 1:22) +
+  labs(title = 'Proportion of Proteins by Subcellular Location and Chromosome', x = 'Chromosome', y = 'Proportion by Subcellular Location') +
+  scale_fill_manual(values = mycolors)
+```
+
+## Conclusions
+From this graph it seems that in general, each autosome contains a roughly equal percentage of genes to each subcellular location - with a few notable exceptions. Based on this data, chromosome 8 does not have any proteins localized to Vesicles, Lysosome, or Golgi. Chromosome 13, 14, 20, and 21 are also missing many subcellular locations.
+  
+## Prioritized follow-up studies
+Ribosomal genes are missing from many chromosomes, which goes against prior observations in the field, which points out to me that this dataset is slighty incomplete. To follow up, I would do some extra datamining to find a more curated chromosomal gene position list. Many of the 'chromosome_scaffold_name' entries were not directly convertible to numeric, and prevented me from including them in my analysis, which may be skewing my results. If a more curated dataset held the same conclusion - I would want to do some comprehensive ribosomal microscopy experiments, knocking down genes as referenced in the databases to see if they held true.
+
+## Acknolwedgements
+Shout out to Matt, Akshay, and Allie for actually teaching the concepts of coding rather than just putting a textbook into powerpoint and reading it out loud. Big shout out to Madison who helped me get work out creative solutions to filter my data.
+
+#Session information for provenance and reproducibility
+```{r, include=FALSE}
+#PROBABLY BEST TO LEAVE THIS HERE, BUT NO NEED TO PRINT IN THE FINAL REPORT.
+utils:::print.sessionInfo(sessionInfo()[-8]) 
+#You can remove an item from sessionInfo(), which is a list with a class attribute, by printing the resulting object omitting one of the list items (omitted list of packages installed, but not loaded)
+```
+

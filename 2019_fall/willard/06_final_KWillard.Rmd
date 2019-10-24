@@ -1,0 +1,80 @@
+---
+title: "Tidybiology Final Project"
+author: "Katie Willard"
+date: "`r format(Sys.time(), '%B %d, %Y')`" #put in quotes to make YAML recognize it
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+## Load libraries
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+library(tidyverse)
+library(tidybiology)
+#uncomment (or select) to clear environment; good for provenance
+rm(list=ls()) 
+```
+
+## Import data
+I imported the "genes" and "subcell" data frames which contain info about genes in the human genome and the subcellular locations of human proteins.
+```{r echo=FALSE}
+data("genes", "subcell")
+```
+## Take a `glimpse` into the data in the dataframe
+"Genes" is a 61,187 x 10 data frame than contains info like gene name, transcript length, and percent GC content. 
+```{r glimpse, echo=FALSE}
+glimpse(genes)
+```
+"Subcell" is a 20,840 x 5 data frame that contains the subcellular locations of human proteins. 
+```{r glimpse 2, echo=FALSE}
+glimpse(subcell)
+```
+## EDA
+I wanted to know if there is a difference between the GC content of transcripts and the subcellular location of proteins produced from those transcripts. To figure this out, I used `inner_join` to merge the two datasets based on gene name. 
+```{r, echo=FALSE}
+genes_and_subcell <- inner_join(genes, subcell, by = "gene_name") 
+```
+## `glimpse()` new data set
+This is a preview of the joined data sets. I used this new data set for my graphing and analysis. 
+```{r glimpse 3, echo=FALSE}
+glimpse(genes_and_subcell)
+```
+
+## EDA Graph  
+This is my first basic graph. There is a fairly consistent GC content of the transcripts that are eventually translated to proteins across subcellular compartments. However, I noticed that the vacuole compartment had a lower average percent GC content and less variation than the other subcell locations.
+
+```{r, echo=FALSE}
+ggplot(genes_and_subcell) +
+ 	geom_boxplot(aes(x = location, y = gene_percent_gc_content))
+```
+
+## Final Graph
+I fixed the subcell location labels so that they weren't overlapping. I also changed the axis labels. I colored the boxplots based on subcellular location. 
+
+```{r final_graph, echo=FALSE}
+ggplot(genes_and_subcell) +
+ 	geom_boxplot(aes(x = location, y = gene_percent_gc_content, color= location)) +
+  theme_bw() +
+  theme(axis.text.x = element_text(face="bold", size=8, angle=60, hjust = 1)) + 
+  labs (y= "%GC Content of Translated Transcripts", x= "Subcellular Location") +
+  guides(color="none")
+#angle changes the angle of the text, hjust changes the alignment of the text so it isn't centered on the axis. 
+```
+
+## Conclusions
+Transcripts that are eventually translated into proteins have a wide range of GC content. The proteins produced from these transcripts don't seem to localize dependent on GC content except for in the vacuole. Vacuole-localized proteins are derived from transcripts that have lower GC content and less variation is GC content. 
+  
+## Prioritized follow-up studies
+I want to know if the lower percent GC content of the transcripts of vacuole proteins means that there is higher turnover of these proteins in the vacuole. If so, what is the biological consequence/ significance of higher turnover?
+
+## Acknolwedgements
+Thanks to the Hirschey Lab and to the tidyverse resources/ community. 
+
+## Session information for provenance and reproducibility
+```{r, echo=FALSE}
+#PROBABLY BEST TO LEAVE THIS HERE, BUT NO NEED TO PRINT IN THE FINAL REPORT.
+utils:::print.sessionInfo(sessionInfo()[-8]) 
+#You can remove an item from sessionInfo(), which is a list with a class attribute, by printing the resulting object omitting one of the list items (omitted list of packages installed, but not loaded)
+```
+

@@ -1,0 +1,122 @@
+---
+title: "Tidybiology Final Project"
+author: "YOUR NAME HERE"
+date: "`r format(Sys.time(), '%B %d, %Y')`" #put in quotes to make YAML recognize it
+---
+
+Install all the packages
+```{r}
+library('tidyverse')
+library('tidybiology')
+library('dplyr')
+
+install.packages('skimr')
+library('skimr')
+
+install.packages('DataExplorer')
+library('DataExplorer')
+
+```
+
+```{r}
+install.packages('writexl')
+library('writexl')
+```
+
+
+Load the datasets 
+```{r}
+data(package='tidybiology')
+# You have 
+# chromosome                     Human chromosome summary
+# genes                          genes
+# join                           join
+# mitocarta                      Mitocarta: an inventory of mammalian mitochondrial genes
+# omim_genemap                   omim_genemap
+# omim_mimtitles                 omim_mimtitles
+# omim_morbidmap                 omim_morbidmap
+# proteins                       proteins
+# simplechromosome               simplechromosome - this is a subset of the dataset chromosome
+# subcell                        subcell
+```
+
+DataExplorer generate reports for datasets 
+
+Datasets that passes the plot_correlation() test are 
+chromosome
+genes - correlations are too low
+join - not knowing too much 
+mitocarta - seems intersting 
+omim_genemap - not knowing too much 
+omim_mimtitles - not knowing too much 
+
+```{r}
+glimpse(chromosome)
+write_xlsx(chromosome, path = 'chromosome.xlsx')
+```
+
+```{r}
+new_chromosome <- chromosome %>% 
+  mutate(variations_percent=(variations/basepairs)*100) %>% 
+  mutate(pseudo_genes_percent=(pseudo_genes/basepairs)*100) %>% 
+  mutate(protein_codinggenes_percent=(protein_codinggenes/basepairs)*100)
+
+plot_correlation(na.omit(new_chromosome))
+
+```
+```{r}
+glimpse(chromosome)
+```
+```{r}
+install.packages("openxlsx") 
+library(openxlsx)
+write_xlsx(chromosome, path = 'chromosome.xlsx')
+```
+```{r}
+```
+
+
+```{r}
+ggplot(chromosome) +
+  geom_point(aes(x=pseudo_genes/basepairs, y=protein_codinggenes/basepairs))+
+  geom_label(aes(x=pseudo_genes/basepairs, y=protein_codinggenes/basepairs, label=id))+
+  labs(x='Number of pseudo genes over length', y='Number of protein-coding genes over length')
+
+```
+
+
+
+```{r}
+plot_correlation(na.omit(genes))
+```
+```{r}
+plot_correlation(na.omit(join))
+```
+```{r}
+plot_correlation(na.omit(mitocarta))
+glimpse(mitocarta)
+```
+```{r}
+plot_correlation(na.omit(omim_genemap))
+```
+```{r}
+plot_correlation(na.omit(omim_mimtitles))
+```
+```{r}
+plot_correlation(na.omit(omim_morbidmap))
+```
+```{r}
+plot_correlation(na.omit(proteins))
+```
+```{r}
+plot_correlation(na.omit(simplechromosome))
+glimpse(simplechromosome)
+```
+```{r}
+plot_correlation(subcell)
+```
+
+```{r}
+glimpse(mitocarta)
+```
+

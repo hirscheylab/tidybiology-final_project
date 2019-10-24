@@ -1,0 +1,266 @@
+---
+title: "Tidybiology Final Project"
+author: "Madison Strain"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  html_document:
+    df_print: paged
+---
+## Load libraries
+```{r setup, message = FALSE}
+rm(list=ls())
+library(tidyverse)
+library(tidybiology)
+library(ggplot2)
+```
+
+## Import data
+```{r import}
+data("subcell")
+data("omim_genemap")
+```
+
+### subcell dataset
+
+The subcell data set has `r nrow(subcell)` rows and `r ncol(subcell)` columns. Each row is a different protein and the columns contain their respective Ensembl protein ID,  gene name, gene ontology ID, cellular localization, and a cellular localization prediction score.
+
+```{r glimpse, echo = FALSE}
+head(subcell, 5)
+```
+
+### omim_genemap dataset
+
+The omim_genemap data set has `r nrow(omim_genemap)` rows and `r ncol(omim_genemap)` columns. It contains information from the [Online Mendelian Inheritance in Man database.](https://www.ncbi.nlm.nih.gov/omim) Specifically, the cytogenic locations of genes that are characterized in the OMIM database.
+
+```{r, echo = FALSE}
+glimpse(omim_genemap)
+```
+
+
+## EDA
+
+I wanted to see if I could combine the two, so I could get the cellular location of genes involved in disease.
+
+```{r}
+# Question 1: Are there overlaps between the two data sets?
+intersect(subcell$gene_name, omim_genemap$gene_symbols) %>% 
+  head(20)
+```
+```{r}
+# YES! But... they are under different column names, which is a problem for joining
+# Add new column that contains the same data
+omim_genemap <- omim_genemap %>% 
+  mutate(gene_name = omim_genemap$gene_symbols)
+
+# Make sure nothing happened
+which(omim_genemap$gene_symbols != omim_genemap$gene_name)
+
+# Combine the data
+combined_data <- inner_join(subcell, omim_genemap, by = "gene_name")
+glimpse(combined_data)
+```
+
+I did an inner join, because I only care about the instances that have information from both data sets. My combined dataset now has `r nrow(combined_data)` rows and `r ncol(combined_data)` columns.  
+
+Then I was interested in the distribution of mendalian proteins across cellular locations.
+
+## EDA Graph  
+Question 2: Do proteins involved in mendalian diseases localize to one cellular compartment more often?
+```{r}
+# Find out how many proteins are in each cellular location
+counts <- combined_data %>% group_by(location) %>% summarise(n=n())
+counts
+```
+
+```{r, echo = FALSE}
+ggplot(counts, aes(x="", y=n, fill=location)) +
+  geom_bar(width = 1, stat = "identity") +
+  coord_polar("y", start=0) +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(), 
+        panel.border = element_blank(),
+        panel.grid = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank()) +
+  labs(title = "Localization of Mendelian Proteins") +
+  guides(fill=guide_legend(title="Cell Compartment"))
+  
+```
+
+Seems like a lot of the proteins are localizing to the cytoplasm. But what would be more interesting, is if we find the distribution cellular localization for all genes, then overlay what we know about genes involved in disease. So I tried to layer a donut and a pie graph. Which should look similar to this:  
+
+![Example of a donut graph overlayed on top of a pie graph](/cloud/project/4_misc/opPnh.png)
+
+  
+## Final Graph
+
+```{r, include=FALSE}
+all_loc <- subcell %>%
+  group_by(location) %>% 
+  summarise(n=n()) %>% 
+  mutate(percent = (n/sum(n))*100) %>% 
+  filter(percent > 1) %>% 
+  arrange(percent)
+
+omim <- combined_data %>% group_by(location) %>% summarise(omim=n()) %>% arrange(omim) %>% filter(omim > 23)
+
+together <- full_join(all_loc, omim, by = "location") %>% 
+  mutate(omim_percent = (omim/n)*percent, other = percent - omim_percent)
+
+df <- data.frame(Location = rep(together$location, 2), mend = rep(c("yes","no"), length(together$location))) %>% 
+  arrange(Location)
+df <- df[-c(1,2,13,14),]
+ymin <- c(55.38, 65.10, 8.52, 3.30, 34.00, 38.11, 1.69, 0.00, 16.53, 19.87)
+ymax <- c(65.10, 100, 16.53, 8.52, 38.11, 55.38,3.30, 1.69, 19.87, 34.00)
+
+share <- c(9.7168906, 32.912668, 8.013436, 2.1545106, 4.1218810, 17.269674, 1.612284, 0.2207294, 3.3349328, 14.136276)
+
+df <- df %>% mutate(ymin = ymin, ymax = ymax, share = share)
+```
+
+
+This was my first attempt...
+
+
+```{r, echo = FALSE, warning=FALSE}
+donuts_plot <- function(
+                        panel = runif(3), # counts
+                        pctr = c(.5,.2,.9), # percentage in count
+                        legend.label='',
+                        cols = c('chartreuse', 'chocolate','deepskyblue'), # colors
+                        outradius = 1, # outter radius
+                        radius = .7,   # 1-width of the donus 
+                        add = F,
+                        innerradius = .5, # innerradius, if innerradius==innerradius then no suggest line
+                        legend = F,
+                        pilabels=F,
+                        legend_offset=.25, # non-negative number, legend right position control
+                        borderlit=c(T,F,T,T)
+                        ){
+    par(new=add)
+    if(sum(legend.label=='')>=1) legend.label=paste("Series",1:length(pctr))
+    if(pilabels){
+        pie(panel, col=cols,border = borderlit[1],labels = legend.label,radius = outradius)
+    }
+    panel = panel/sum(panel)
+
+    pctr2= panel*(1 - pctr)
+    pctr3 = c(pctr,pctr)
+    pctr_indx=2*(1:length(pctr))
+    pctr3[pctr_indx]=pctr2
+    pctr3[-pctr_indx]=panel*pctr
+    cols_fill = c(cols,cols)
+    cols_fill[pctr_indx]='white'
+    cols_fill[-pctr_indx]=cols
+    par(new=TRUE)
+    pie(pctr3, col=cols_fill,border = borderlit[2],labels = '',radius = outradius)
+    par(new=TRUE)
+    pie(panel, col='white',border = borderlit[3],labels = '',radius = radius)
+    par(new=TRUE)
+    pie(1, col='white',border = borderlit[4],labels = '',radius = innerradius)
+    if(legend){
+        # par(mar=c(5.2, 4.1, 4.1, 8.2), xpd=TRUE)
+        legend("topright",inset=c(-legend_offset,0),legend=legend.label, pch=rep(15,'.',length(pctr)), 
+               col=cols,bty='n')
+    }
+    par(new=FALSE)
+}
+## col- > subcor(change hue/alpha)
+subcolors <- function(.dta,main,mainCol){
+    tmp_dta = cbind(.dta,1,'col')
+    tmp1 = unique(.dta[[main]])
+    for (i in 1:length(tmp1)){
+        tmp_dta$"col"[.dta[[main]] == tmp1[i]] = mainCol[i]
+    }
+    u <- unlist(by(tmp_dta$"1",tmp_dta[[main]],cumsum))
+    n <- dim(.dta)[1]
+    subcol=rep(rgb(0,0,0),n);
+    for(i in 1:n){
+        t1 = col2rgb(tmp_dta$col[i])/256
+        subcol[i]=rgb(t1[1],t1[2],t1[3],1/(1+u[i]))
+    }
+    return(subcol);
+}
+    
+df2=df[order(df$Location,df$share),]
+arr=aggregate(share~Location,df2,sum)
+### choose your cols
+mainCol =  c('chartreuse3', 'chocolate3','deepskyblue3','gold3','deeppink3','forestgreen', 'maroon')
+donuts_plot(df2$share,rep(1,11),df2$Location,
+        cols=subcolors(df2,"Location",mainCol),
+        legend=F,pilabels = T,borderlit = rep(F,4) )
+donuts_plot(arr$share,rep(1,5),arr$Location,
+        cols=mainCol,pilabels=F,legend=T,legend_offset=-.02,
+        outradius = .71,radius = .0,innerradius=.0,add=T,
+        borderlit = rep(F,4) )
+```
+
+
+```{r final_graph, echo=FALSE}
+donuts <- function(x, group = 1, labels = NA, col = NULL, radius = c(.7, 1)) {
+  group <- rep_len(group, length(x))
+  ug  <- unique(group)
+  tbl <- table(group)[order(ug)]
+
+  col <- if (is.null(col))
+    seq_along(ug) else rep_len(col, length(ug))
+  col.main <- Map(rep, col[seq_along(tbl)], tbl)
+  col.sub  <- lapply(col.main, function(x) {
+    al <- head(seq(0, 1, length.out = length(x) + 2L)[-1L], -1L)
+    Vectorize(adjustcolor)(x, alpha.f = al)
+  })
+
+  plot.new()
+  
+  par(new = TRUE)
+  pie(x, border = NA, radius = radius[2L],
+      col = unlist(col.sub), labels = labels)
+
+  par(new = TRUE)
+  pie(x, border = NA, radius = radius[1L],
+      col = unlist(col.main), labels = NA)
+}
+
+with(df,
+     donuts(share, Location, sprintf('%s: %s', Location,mend),
+            col = c('dodgerblue2','maroon','forestgreen','cyan2','yellow','pink'))
+)
+
+```
+
+## Percentage of OMIM genes per locations, normalized by total number of genes
+
+```{r, echo=FALSE}
+rounded <- round(together$omim_percent, 2)
+
+ggplot(data = together, aes(x=location, y=omim_percent)) +
+  geom_bar(stat="identity", color ="maroon",fill="white") +
+  coord_flip(ylim = c(0, 12)) +
+  labs(x = "Percentage of OMIM Genes", y = "Protein Localization") + 
+  theme_minimal()+
+  geom_text(aes(label=paste(rounded,"%"), vjust=0.5, hjust=-0.5))
+```
+
+
+## Conclusions
+
+Proteins involved in Mendelian diseases often localize to the cytoplasm. Maybe there aren't as many redundant proteins in the cytoplasm, so mutations are more deleterious and noticable.  
+
+Overlaying donut graphs on top of pie graphs is not for me.
+  
+## Prioritized follow-up studies
+
+I'd be interested in characterizing common functions of Mendelian proteins and overlaying the results with the localization dataset. To see if theres a relationship between the cytoplasm and a biological process.
+
+## Acknolwedgements
+
+I'd like to thank Dr. Hirschey, Allie, and Akshay, for a great module.
+
+#Session information for provenance and reproducibility
+```{r}
+#PROBABLY BEST TO LEAVE THIS HERE, BUT NO NEED TO PRINT IN THE FINAL REPORT.
+utils:::print.sessionInfo(sessionInfo()[-8]) 
+#You can remove an item from sessionInfo(), which is a list with a class attribute, by printing the resulting object omitting one of the list items (omitted list of packages installed, but not loaded)
+```
+

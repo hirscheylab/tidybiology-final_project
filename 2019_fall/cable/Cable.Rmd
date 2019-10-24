@@ -1,0 +1,220 @@
+---
+title: Tidybiology Final Project - Location of Proteins with Potential Prolyl Hydroxylase
+  Motifs
+author: "Jana Cable"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  pdf_document: default
+  html_document: 
+    df_print: paged
+---
+## Load libraries, such as tidyverse and tidybiology
+```{r setup}
+library(tidyverse)
+library(tidybiology)
+rm(list=ls()) 
+```
+#Prolyl Hydroxylation is the process by which a hydroxyl group is added to a proline. Two families of enzymes catalyze this reaction: Prolyl 4-hydroxylase (P4H) and Prolyl Hydroxylase Domain enzymes (PHDs). Each recognizes a unique amino acid motif. I want to see whether the distribution of proteins with each motif is different by subcell location.
+
+
+## Import data
+
+```{r import}
+data("proteins")
+#First I imported the "proteins" dataset. 
+```
+
+## Take a `glimpse` into the data in the dataframe
+```{r glimpse}
+glimpse(proteins)
+
+```
+## EDA
+EXPLORATORY DATA ANALYSIS
+```{r}
+#I decided to start by looking for the P4H recognition sites in Uniprot Data set. P4H is a Prolyl Hydroxylating enzyme that recognizes the motif "PPG" to add the posttranslational modification "Hydroxyprolination" to the middle P. P4H is thought to be localized to the ER, so I was curious whether proteins that could potentially be recognized by P4H exist mostly in membrane vesicles.
+#str_detect(proteins$sequence, "PPG")
+#I found many proteins were "true" for having PPG. And so my first failure was trying to sort based on "True or False" for PPG. But I decided I would rather sort based on the number of PPG motifs so I changed to using "str_count".
+```
+```{r}
+#str_count(proteins$sequence, "PPG")
+#I found many proteins have P4H motif.
+
+```
+```{r}
+#I then decided to add a column to the proteins dataset describing how many P4H-recognition motifs the proteins had which I called "P4H-motif"
+proteins<- mutate(proteins, P4H_motif = str_count(sequence, "PPG"))
+glimpse(proteins)
+
+```
+```{r}
+#Next I want to filter proteins for only those with P4H motif.
+#I saved this dataset as a new file "P4H_proteins"
+P4H_proteins <- proteins %>%
+  select(gene_name, protein_name, P4H_motif)%>%
+  filter(P4H_motif > 0)
+
+glimpse(P4H_proteins)
+```
+```{r}
+#Now I want to join this new dataset with the data from the subcell dataset to group proteins by cellular location. Started by glimpsing subcell data to make sure they have shared category "gene_name".
+data(subcell)
+glimpse(subcell)
+```
+```{r}
+#Then I left joined the two groups by "gene_name" using left_join because I only want to focus on proteins in with the P4H motif.
+P4H_proteins_subcell_left <- left_join(P4H_proteins, subcell, by = "gene_name")
+glimpse(P4H_proteins_subcell_left) 
+
+```
+
+```{r}
+P4H_location <- P4H_proteins_subcell_left %>%
+  group_by(location) %>%
+  count(location)
+P4H_location
+#Counted number of proteins with P4H motif in each location. Proteins occur primarily in cytoplasm, nucleus, membrane, extracellular.
+```
+
+```{r}
+ggplot(data = P4H_location) + 
+  geom_point(mapping=aes(x=location, y=n))
+#I noticed there were differences in the number of proteins with these motifs in different subcellular locations. I was particularly surprised so many were in the cytoplasm. So I decided to compare the distribution of motifs recognized by another prolyl hydroxylating enzyme family called PHD which are found primarily in the cytoplasm, because I hypothesized PHD motifs would be most present in the cytoplasm compared to P4H.
+
+```
+
+
+```{r}
+#Now repeating with another prolyl hydroxylating enzyme that is thought to primarily reside in the cytoplasm and has a different amino acid recognition motif "LXXLAP". I added another column to the proteins data set.
+#data(proteins)
+  #str_count(proteins$sequence, "L..LAP")
+#Not showing because these charts are too long to show.
+
+```
+```{r}
+proteins<- mutate(proteins, PHD_motif = str_count(sequence, "L..LAP"))
+glimpse(proteins)
+```
+```{r}
+PHD_proteins <- proteins %>%
+  select(gene_name, protein_name, PHD_motif)%>%
+  filter(PHD_motif > 0)
+```
+```{r}
+PHD_proteins_subcell_left <- left_join(PHD_proteins, subcell, by = "gene_name")
+PHD_proteins_subcell_left
+```
+```{r}
+PHD_proteins_subcell_left %>%
+  group_by(location) %>%
+  summarize(mean(PHD_motif))
+#It is clearly more common for proteins to only have a single PHD recognition motif. Maybe because motif required for enzyme recognition is longer (6 rather than 3 amino acids) any maybe less 
+```
+```{r}
+PHD_protein_locatin <-PHD_proteins_subcell_left %>%
+  group_by(location) %>%
+  count(location)
+PHD_protein_locatin
+#Counted number of proteins with this motif in each compartment. Fewer subcellular locations contain the motif and they occur primarily in the cytoplasm, membrane, and nucleus.
+```
+```{r}
+proteins<- mutate(proteins, P4H_motif_broad = str_count(sequence, ".PG"))
+glimpse(proteins)
+```
+
+```{r}
+#This idea falls into the "failure" category because I was unable to complete this goal.
+#Then, since the locations with the highest number of motifs is similiar across P4H and PHD recognizing I want to see whether both the dispersion of the motif is just a reflection of the number of total proteins in each compartment or a true reflection of some subcellular locations have this motif more highly present than others.
+#First I made a new data table with both P4H-motifs proteins and PHD-motif proteins.
+proteins<- mutate(proteins, P4H_motif = str_count(sequence, "PPG"), PHD_motif = str_count(sequence, "L..LAP"))
+glimpse(proteins)
+```
+```{r}
+proteins_subcell_location <- left_join(proteins, subcell, by = "gene_name")
+proteins_subcell_locationA <- proteins_subcell_location %>%
+  group_by(location) %>%
+  count(location)
+proteins_subcell_locationA
+#Now I see the total number of proteins in each location. Now I want to divide that number by the number of protein with P4H motif and the PHD motif. I tried to join the proteins data set which now has P4H and PHD motif containing proteins with the subcell dataset based on "gene_name". However, the "count" was not distinct for each motif.
+```
+
+
+```{r}
+proteins_subcell_left <- left_join(proteins, subcell, joining, by = "gene_name")
+proteins_subcell_left
+```
+
+
+```{r}
+Protein_by_location <- proteins_subcell_left %>%
+  select(gene_name, location)
+Protein_by_location
+
+Protein_location_count <-Protein_by_location %>%
+  count(location)
+Protein_location_count
+#I then tried to seperate just the total protein count in each location.
+```
+
+```{r}
+DataD <- full_join(P4H_location, PHD_protein_locatin, by = "location")
+DataD
+#I then decided to just join the proteins based on location for P4H motifs and PHD motifs.
+```
+
+```{r}
+DataE <- full_join(DataD, Protein_location_count, by = "location")
+DataE
+```
+
+```{r}
+
+  
+```
+
+
+## EDA Graph  
+BEGIN TO EXPLORE HOW YOU MIGHT PLOT IT. OK TO SHOW YOUR FAILURES, OR HALF-FINISHED PRODUCTS HERE.
+```{r}
+P4H_proteins_subcell_left %>%
+  group_by(location) %>%
+  summarize(max(P4H_motif))
+#Then I tried sorting based on which subcellular location had the highest number of P4H motifs. 
+```
+  
+```{r}
+P4H_Mean_locations <- P4H_proteins_subcell_left %>%
+  group_by(location) %>%
+  summarize(mean(P4H_motif))
+#Sorted by Subcellular location and mean number of P4H motifs in proteins with P4H motif to see if protein location influences number of motifs. Extracellular has the highest average, probably due to collagen. 
+P4H_Mean_locations
+```
+  
+## Final Graph
+SET UP THE BIG FINALE
+```{r final_graph}
+Dataplot <-ggplot(data = DataE) + 
+  geom_point(mapping = aes(x = location, y = n.x), color = "red")+ 
+  geom_point(mapping = aes (x= location, y = n.y), color = "blue")+
+  geom_point(mapping = aes (x = location, y = n), color = "purple")+
+  labs(x = "Cellular Location", y = "Proteins with Motifs", title = "Locations of Proteins with Prolyl Hydroxylation Motifs")
+Dataplot +
+  theme(legend.box = "right")
+
+ggsave("PHM graph.png")
+```
+
+## Conclusions
+The P4H motif appears to be much more highly prevelant overall than the PHD motif, although this may be because the PHD motif is longer and therefore more specific while the P4H motif is three amino acids long. Also, the number of proteins with these motifs in each cellular location does seem to correlate with the total number of proteins in that compartment, so the number of proteins with the motif may just be random change and not true recognition motif. But, interestingly, more P4H motifs are found in nucleus than membrane, even though more total proteins are found in membrane than protein, suggesting that even though P4H is thought to be localized to the ER, it may actually play a role in regulating proteins that translocate to the nucleus.
+  
+## Prioritized follow-up studies
+As a follow up, I would want to BioID tag P4H to survey which proteins it physically associates with and categories the cellular location of known proteins identified to identify novel substrates and the compartments in which P4H has activity.
+
+## Acknolwedgements
+
+
+#Session information for provenance and reproducibility
+```{r}
+utils:::print.sessionInfo(sessionInfo()[-8]) 
+```
+

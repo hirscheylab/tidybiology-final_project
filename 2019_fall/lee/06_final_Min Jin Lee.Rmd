@@ -1,0 +1,201 @@
+---
+title: "Tidybiology Final Project: Creating heatmap of RNA-seq data"
+author: "Min Jin Lee"  
+date: "`r format(Sys.time(), '%B %d, %Y')`" #put in quotes to make YAML recognize it
+output: html_document  
+---
+### Install additional packages
+```{r eval=FALSE}
+install.packages("hrbrthemes")
+install.packages("plotly")
+install.packages("d3heatmap")
+install.packages("heatmaply")
+install.packages("gplots")
+
+```
+### Load libraries
+```{r include=FALSE}
+library(kableExtra)
+library(gplots)
+library(tidyverse)
+library(here)
+library(glue)
+library(ggrepel)
+library(ggforce)
+library(devtools)
+library(tidybiology)
+library(hrbrthemes)
+library(viridis)
+library(plotly)
+library(d3heatmap)
+library(heatmaply)
+library(ggridges)
+library(ggplot2)
+library(viridis)
+library(hrbrthemes)
+library(d3heatmap)
+
+#uncomment (or select) to clear environment; good for provenance
+rm(list=ls()) 
+```
+### Import data
+I used publicly available RNA-seq datasets of _in vitro_ calcium-mediated keratinocyte differentiton shared by Bin, et. al., 2016 (GSE73305). There were total of 6 conditions. US (unstimulated), D1 (1 day post induction), D2 (2 days post induction), ..., D5(5 days post induction). The differential gene expression was calculated using the unstimulated control. The data clean-up process was performed by our colaborator, Dr. David Corcoran. I created csv files for each time point to upload.
+
+```{r import}
+#IMPORT YOUR DATA
+#MAKE SURE TO GET THE CODE CHUNK OPTIONS SET
+D1vsUS_GSE73305 <- read.csv("/cloud/project/6_final/D1vsUS_GSE73305.csv")
+D2vsUS_GSE73305 <- read.csv("/cloud/project/6_final/D2vsUS_GSE73305.csv")
+D3vsUS_GSE73305 <- read.csv("/cloud/project/6_final/D3vsUS_GSE73305.csv")
+D4vsUS_GSE73305 <- read.csv("/cloud/project/6_final/D4vsUS_GSE73305.csv")
+D5vsUS_GSE73305 <- read.csv("/cloud/project/6_final/D5vsUS_GSE73305.csv")
+
+```
+### Take a `glimpse` into the data in the dataframe
+The dataset looks like this:
+```{r}
+glimpse(D1vsUS_GSE73305)
+```
+
+Next, I trimmed my datasets to extract only two variables: geneName and log2FoldChnage.
+```{r include = FALSE}
+#Rename my datasets to be able to analyze them
+D1_log2FC <- D1vsUS_GSE73305
+D2_log2FC <- D2vsUS_GSE73305
+D3_log2FC <- D3vsUS_GSE73305
+D4_log2FC <- D4vsUS_GSE73305
+D5_log2FC <- D5vsUS_GSE73305
+ 
+#Delete the columns of the dataframe that I do not need
+D1_log2FC <- select(D1_log2FC,-c(geneID,baseMean,lfcSE,stat,pvalue,padj))
+D2_log2FC <- select (D2_log2FC,-c(geneID,baseMean,lfcSE,stat,pvalue,padj))
+D3_log2FC <- select (D3_log2FC,-c(geneID,baseMean,lfcSE,stat,pvalue,padj))
+D4_log2FC <- select (D4_log2FC,-c(geneID,baseMean,lfcSE,stat,pvalue,padj))
+D5_log2FC <- select (D5_log2FC,-c(geneID,baseMean,lfcSE,stat,pvalue,padj))
+```
+Next, I joined the datasets.
+```{r include = FALSE}
+#join the datasets together
+joined_log2FC <- inner_join(D1_log2FC, D2_log2FC, by='geneName') %>% 
+                    inner_join(., D3_log2FC, by='geneName') %>% 
+                    inner_join(., D4_log2FC, by='geneName') %>% 
+                    inner_join(., D5_log2FC, by='geneName')
+```
+
+```{R glipmse, include = FALSE}
+glimpse(joined_log2FC)
+
+#rename all the columns again
+names(joined_log2FC) <- c("geneName","D1","D2","D3","D4","D5")
+glimpse(joined_log2FC)
+```
+
+```{r include = FALSE}
+# further clean up-- I wanted to designate my column 'geneName' as row names. However, there were several duplicate row names. In order to clean up, I decide to delete all rows with those duplicate names. I do not need any of those duplicate genes for my further analysis.
+# select observations to select genes of interest: S100A7, FLG, FLG2, ISG20, JUND ..etc
+#removing rows with duplcate geneName - I don't need them for my analysis
+log2FC <-joined_log2FC[- grep("1-Mar", joined_log2FC$geneName),]
+log2FC <-log2FC[- grep("RGS5", log2FC$geneName),]
+log2FC <-log2FC[- grep("TBCE", log2FC$geneName),]
+log2FC <-log2FC[- grep("MATR3", log2FC$geneName),]
+log2FC <-log2FC[- grep("CYB561D2", log2FC$geneName),]
+log2FC <-log2FC[- grep("RF00019", log2FC$geneName),]
+log2FC <-log2FC[- grep("EMG1", log2FC$geneName),]
+log2FC <-log2FC[- grep("2-Mar", log2FC$geneName),]
+log2FC <-log2FC[- grep("POLR2J4", log2FC$geneName),]
+log2FC <-log2FC[- grep("HSPA14", log2FC$geneName),]
+log2FC <-log2FC[- grep("RF00003", log2FC$geneName),]
+log2FC <-log2FC[- grep("POLR2J3", log2FC$geneName),]
+log2FC <-log2FC[- grep("COG8", log2FC$geneName),]
+
+log2FC_rowname <- data.frame(log2FC[,-1], row.names=log2FC[,1])
+```
+
+## EDA Graph  
+For my analysis, I ploted selected antiviral genes (AVPs). 
+
+```{r include = FALSE}
+AVP2 <- log2FC_rowname[c('OAS2','OAS3','EIF2AK2','IFITM1','IFIT2','GBP2','OAS1','MX1','IFIT1','GBP1'), ]
+AVP2t <- t(AVP2)
+
+AVP2tr <- cbind(rownames(AVP2t), data.frame(AVP2t, row.names=NULL))
+colnames(AVP2tr)[colnames(AVP2tr)=="rownames(AVP2t)"] <- "time_point"
+
+glimpse(AVP2tr)
+```
+```{r include = FALSE}
+
+AVP2trm <-pivot_longer(AVP2tr, cols=c('OAS2','OAS3','EIF2AK2','IFITM1','IFIT2','GBP2','OAS1','MX1','IFIT1','GBP1'), names_to = "gene", values_to = "DEG")
+```
+
+```{r echo= FALSE}
+# library
+ggplot(data = AVP2trm, mapping = aes(x = time_point, y= DEG, color = gene )) +
+    geom_point()+
+   labs(x= "Time Points", y="Differential Expression, relative to D0 (Log2)")
+
+
+```
+
+```{r include=FALSE}
+AVP1 <- log2FC_rowname[c('FLG','ISG20','IFNAR1','OAS2','OAS3','EIF2AK2','IFITM1','IFIT2','SLC2A1', 'IFNAR2','MGST1','GBP2','JUN','OAS1','MX1','IFIT1','GBP1','KRT1','KRT10','GLI1','NFATC1'), ]
+
+glimpse(AVP1)
+
+```
+## Next step
+I decided to create a heatmap using AVPs as well as some keratinocyte differentiation markers
+
+```{r include = FALSE}
+#FIRST I FAILED. 
+colnames(log2FC_rowname) <- gsub("\\.", " ", colnames(log2FC_rowname))
+
+# Select a few country
+AVP1 <- log2FC %>% 
+  filter(geneName%in% c('FLG','ISG20','IFNAR1','OAS2','OAS3','EIF2AK2','IFITM1','IFIT2','SLC2A1', 'IFNAR2','MGST1','GBP2','JUN','OAS1','MX1','IFIT1','GBP1','KRT1','KRT10','GLI1','NFATC1')) %>%
+  arrange(geneName) %>%
+  mutate(geneName = factor(geneName, geneName))
+
+# Matrix format
+mat <- AVP1
+rownames(mat) <- mat[,1]
+mat <- mat %>% dplyr::select(-geneName)
+mat <- as.matrix(mat)
+```
+```{r echo=FALSE}
+#default plot
+heatmap(mat, scale ="row", Colv=FALSE)
+```
+```{r echo = FALSE}
+heatmap.2(mat, margins = c(0,5), scale = "none", col = bluered(80),
+          trace = "none", density.info = "none", Colv= FALSE, dendrogram = 'row')
+```
+
+## Final Graph
+I created an interactive heatmap.
+```{r echo = FALSE}
+
+d3heatmap(scale(mat), col = bluered(80),
+          dendogram = "row", k_row = 4, # Number of groups in rows
+          Colv = FALSE,
+          scale = "none", yaxis_font_size = "10pt", width=400, height = 600)
+
+
+```
+
+## Conclusions
+Analysis of extracted result shows evidence that calcium-mediated differentiation of kertinocytes modulate transcription of some antiviral genes.
+  
+## Prioritized follow-up studies
+As a follow up, I would like to validate the trend I see from the RNA-seq data with RT-qPCR. Since these AVPs are upregulated with calcium-mediated differentiation of keratinocytes, I plan to inhibit calcium signaling using a small molecule inhibitor.
+
+## Acknolwedgements
+I would like to thank Dr. Hirschey, Dr. Mill, and Dr. Bareja for giving me this basig course and tools for data analysis using r. I would also like to acknowledge Dr. Corcoran for providing the datasets. I'm grateful for the packages and libraries I used, and also numerous help I received online. 
+
+#Session information for provenance and reproducibility
+```{r echo = FALSE}
+#PROBABLY BEST TO LEAVE THIS HERE, BUT NO NEED TO PRINT IN THE FINAL REPORT.
+utils:::print.sessionInfo(sessionInfo()[-8]) 
+#You can remove an item from sessionInfo(), which is a list with a class attribute, by printing the resulting object omitting one of the list items (omitted list of packages installed, but not loaded)
+```
+

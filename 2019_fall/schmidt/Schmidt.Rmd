@@ -1,0 +1,98 @@
+---
+title: "Tidybiology Final Project"
+author: "Hannah Schmidt"
+date: "r format(Sys.time(), '%B %d, %Y')"
+output:
+html_document:
+df_print: paged
+---
+## Load libraries
+```{r setup}
+library(plyr)
+library(tidyverse)
+library(stringr)
+library(ggforce)
+library(devtools)
+library(tidybiology)
+library(readr)
+
+
+#uncomment (or select) to clear environment; good for provenance
+rm(list=ls()) 
+```
+
+## Import data
+proteins:20,430 x 9 data frame containing information about the proteins produced by the genes in the human genome
+subcell:20,840 x 5 data frame containing information about the cellular location of proteins
+```{r import}
+data("proteins")
+data("subcell")
+
+```
+
+
+## EDA
+EXPLORATORY DATA ANALYSIS
+```{r}
+#I was interested in looking at proteins with a ITA (immunoreceptor tyrosine-based activation) motif, which is important for signal transduction in immune cells
+proteins_new<- mutate(proteins, ITAM_motif = str_detect(sequence, "Y..(I|L)......Y..(I|L)"))
+proteins_subcell_left <- left_join(proteins_new, subcell, by = "gene_name")
+proteins_subcell_left%>%
+  filter(ITAM_motif==TRUE)->ITAM
+glimpse(ITAM)
+
+  
+```
+
+## EDA Graph  
+```{r}
+#Just trying to visualize the location of the proteins containing the ITA motif 
+ggplot(ITAM, aes(x=location, y=length, color=location))+
+ 	 geom_point()
+```
+  
+## Final Graph
+```{r}
+#Noticed that only a small number of GO terms were represented in the proteins with ITAM
+#Wanted to count the times each GO term appears in the ITAM data set
+library(readr)
+  (count(ITAM, 'go_term'))->count_ITAM
+#Loaded a table that related GO term to function
+GOterms<-read_tsv("GO Terms.tab", col_names=c("go_term", "go.function"))
+
+```
+
+
+```{r}
+#Merged the tables with the count of the GO terms appearing in ITAM with the table containing GO term and function
+merge(count_ITAM, GOterms) ->GOanalysis 
+
+
+```
+
+```{r final_graph, echo=FALSE}
+#Graphed the frequency of the GO terms for ITA motif
+ ggplot(data = GOanalysis, aes(x = reorder(go.function,-desc(freq)), y = freq)) +
+  geom_bar(stat="identity")+
+  labs(x = "GO Term", y="Number of Hits", title="GO Terms Associated with Proteins Containing an ITA Motif")+
+  coord_flip()+
+  theme_minimal()
+
+```
+
+## Conclusions
+ITAM is associated with signal transduction in immune cells, so we would expect that the most common GO term would be related. We see that the majority of proteins with the ITAM are associated with the GO term cytoplasm, which is not what we would expect. The second most frequent GO term is membrane.
+  
+## Prioritized follow-up studies
+It would be interesting to discover why cytoplasm is the top hit. Is this a functional motif in the cytoplasm? For the hits in the cytoplasm and nucleus I would choose a couple proteins to test and mutate the ITAM and see if the function of the protein changes.
+
+## Acknolwedgements
+Thank you to Allie, Akshay, and Dr. Hirschey
+
+#Session information for provenance and reproducibility
+```{r}
+#PROBABLY BEST TO LEAVE THIS HERE, BUT NO NEED TO PRINT IN THE FINAL REPORT.
+utils:::print.sessionInfo(sessionInfo()[-8]) 
+#You can remove an item from sessionInfo(), which is a list with a class attribute, by printing the resulting object omitting one of the list items (omitted list of packages installed, but not loaded)
+```
+

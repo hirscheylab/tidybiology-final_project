@@ -1,0 +1,146 @@
+---
+title: "Tidybiology Final Project"
+author: "Shannon Dupont"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output: html_document
+---
+## Load libraries
+`library(tidyverse)`
+`library(tidybiology)`
+```{r, include=FALSE}
+library(tidyverse)
+library(tidybiology)
+```
+
+## Import data
+I uploaded data generated in my lab which consists of expression data for male germ cells (MGCs) for wild-type (WT) and mutant (MUT) mice at different time points during embryonic development. The mutation being analyzed here is the _Ter_ mutation in the gene for the RNA-binding protein DND1; mutations in this gene cause testicular teratomas. 
+I also uploaded the "genes" dataset from the tidybiology package. 
+```{r include=FALSE}
+MGC_Expression <- read_csv(here::here("MGC_Expression_WT_Ter.csv"))
+data("genes")
+```
+
+When we look at the MGC dataset we can see that there are 11 different variables, 4 of which are empty cells filled in automatically during the upload process. The other variables are gene names and the mean expression in RPKM for each of three timepoints (E12.5, E13.5, and E14.5) and the two sample types (WT or MUT).
+``` {r }
+glimpse(MGC_Expression)
+```
+
+When we look at the **genes** dataset, we can see it contains a lot of information on genes, including chromosomal location and a brief description of the function of the protein each gene encodes. 
+```{r}
+glimpse(genes)
+```
+
+## EDA
+While the dataset generated in my lab is extensive, the copy of the dataset I have does not have any descriptions on what each gene codes for. To add this description, I joined the **MGC Expression** and **genes** datasets using `inner_join()`.
+```{r include=FALSE}
+expression_genes_inner <- inner_join(MGC_Expression, genes, by = "gene_name")
+```
+
+```{r echo=FALSE}
+glimpse(expression_genes_inner)
+```
+
+
+I am particularly interested in chromatin modifying proteins and what roles they play in sex determination and development of the gonad. As such, I filtered the data with `filter()` to show me only genes that have "chromatin" in the description of their function. 
+```{r echo=FALSE}
+expression_chromatin <- expression_genes_inner %>% 
+  filter(str_detect(gene_description, "chromatin"))
+dim(expression_chromatin)
+```
+
+Next, I wanted to see the difference in mean expression between the WT and MUT mice. I used `mutate()` to create three new columns corresponding to the mean difference in expression for each developmental stage. 
+```{r echo=FALSE}
+expression_chrom_meandiff <- expression_chromatin %>%
+  mutate(twelve_difference = (tw_MUTmean - tw_WTmean)) %>% 
+  mutate(thirteen_difference = (thir_MUTmean - thir_WTmean)) %>% 
+  mutate(fourteen_difference = (four_MUTmean - four_WTmean)) 
+```
+
+```{r include = FALSE}
+expression_chrom_meandiff2 <- select(expression_chrom_meandiff, gene_name, gene_description, twelve_difference:fourteen_difference)
+```
+
+```{r echo=FALSE}
+dim(expression_chrom_meandiff2)
+```
+
+
+This dataset returned some interesting results, so I visualized this with a variant of the lolipop plot called the **Conditional Color** plot, which is basically a box plot that color labels the bars based on if their value is higher or lower than an assigned threshold. So you can see the genes whose expression is increased in the MUT samples relative to the WT samples in red, and those whose expression is decreased in the MUT samples in blue. 
+```{r}
+data <- expression_chrom_meandiff
+# Add a column with your condition for the color
+data <- data %>% 
+  mutate(mycolor = ifelse(twelve_difference>0, "type1", "type2"))
+ 
+# plot
+ggplot(data, aes(x=gene_name, y=twelve_difference)) +
+  geom_segment( aes(x=gene_name, xend=gene_name, y=0, yend=twelve_difference, color=mycolor), size=6, alpha=0.9) +
+  theme_light() +
+  theme(
+    legend.position = "none",
+    panel.border = element_blank(),
+    panel.grid.minor = element_blank(),
+  ) +
+  xlab("Gene Name") +
+  ylab("Difference in mean expression (RPKB)")+
+  ggtitle('Difference in mean expression of chromatin modifier genes at E12.5 between DND1-Ter and WT MGCs')+
+  theme(plot.title = element_text(size=9, vjust=1, lineheight=0.6))+
+  theme(axis.text.x=element_text(angle=50, size=10, vjust=0.5))
+```
+
+
+To make this data easier to look at I chose to focus on one chromatin remodeling complex: the BAF complex. I used `filter()` to narrow the dataset to only those genes in the BAF complex. 
+```{r echo=FALSE}
+expression_BAF <- expression_chrom_meandiff2 %>% 
+  filter(str_detect(gene_description, "BAF")) 
+expression_BAF <- select(expression_BAF, gene_name, twelve_difference)
+glimpse(expression_BAF)
+```
+
+
+Here is a plot showing the difference in mean expression at E12.5 between the WT and MUT mice for these BAF complex members.   
+
+```{r echo=FALSE}
+# library
+library(ggplot2)
+library(dplyr)
+
+# Assign data 
+data <- expression_BAF
+# Add a column with your condition for the color
+data <- data %>% 
+  mutate(mycolor = ifelse(twelve_difference>0, "type1", "type2"))
+ 
+# plot
+ggplot(data, aes(x=gene_name, y=twelve_difference)) +
+  geom_segment( aes(x=gene_name, xend=gene_name, y=0, yend=twelve_difference, color=mycolor), size=6, alpha=0.9) +
+  theme_light() +
+  theme(
+    legend.position = "none",
+    panel.border = element_blank(),
+    panel.grid.minor = element_blank(),
+  ) +
+  xlab("Gene Name") +
+  ylab("Difference in mean expression (RPKB)")+
+  ggtitle('Difference in mean expression of BAF complex genes at E12.5 between DND1-Ter and WT MGCs')+
+  theme(plot.title = element_text(size=10, vjust=1, lineheight=0.6))+
+  theme(axis.text.x=element_text(angle=50, size=10, vjust=0.5))
+
+ggsave(here::here("6_final", "DND1-Ter_E12.5_BAF_expression.png"), plot = last_plot(), height = 5, width = 7, units = "in", dpi = 300) 
+```
+
+
+## Conclusions
+It is clear that there are disruptions in the expression of genes that encode members of chromatin modifying complexes; however, there is not a distinct trend that shows one complex completely increasing or decreasing in expression.  
+  
+## Prioritized follow-up studies
+I would be interested to see what the chromatin landscape looks like in the DND1-Ter mutant MGCs. ATAC-seq would indicate if there are distinct trends in chromatin accesibility in the mutants relative to WT controls, and from this data we could begin to narrow down the importance of up- or down-regulation of each of these chromatin modifying complexes. Further, it would be cool to sort the data to include other chromatin remodeling proteins, including histone demethylases, to see how they are disrupted over time in this mutant. 
+
+## Acknolwedgements
+I would like to acknowledge Yan Holtz for [plot inspiration](https://www.r-graph-gallery.com/302-lollipop-chart-with-conditional-color.html), the creaters of the tidybiology package, Akshay Bareja, Allie Mills, and Dr. Hirschey.
+
+## Session information for provenance and reproducibility
+```{r echo=FALSE}
+utils:::print.sessionInfo(sessionInfo()[-8]) 
+#You can remove an item from sessionInfo(), which is a list with a class attribute, by printing the resulting object omitting one of the list items (omitted list of packages installed, but not loaded)
+```

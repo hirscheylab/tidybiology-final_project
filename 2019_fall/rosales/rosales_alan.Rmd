@@ -1,0 +1,139 @@
+---
+title: "Tidybiology Final Project"
+author: "Alan Rosales"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output: pdf_document
+---
+## Load libraries
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+library(viridis)
+library(tidyverse)
+library(tidybiology)
+library(stringr)
+library(dplyr)
+library(tidyr)
+
+rm(list=ls()) 
+```
+
+## Import data
+I first loaded proteins, genes, subcell, and omim_genemap data, which were compiled by Matthew Hirschey and Akshay Bareja. 
+```{r import, include=FALSE}
+data(proteins)
+data(genes)
+data(subcell)
+data(omim_genemap)
+```
+
+## Take a `glimpse` into the data in the dataframe
+Next, I found that the 'proteins' dataframe contained 20,430 observations and 8 variables.
+The 'genes' dataframe contained 61,187 observations and 10 variables.
+The 'subcell' dataframe contained 20,840 observations and 5 variables.
+Lastly, the 'omim_genemap' datafram contained 16,992 observations and 14 variables.
+```{r glimpse, echo=FALSE}
+glimpse(proteins)
+glimpse(genes)
+glimpse(subcell)
+glimpse(omim_genemap)
+```
+## EDA
+I began to explore 'proteins', 'genes', and 'subcell' a little further. I wanted to see the relationship between protein transcripts and their cellular locations. Surprisingly, I expected to find proteins being coded for the mitochondria, considering it's the "power house of the cell". I became curious as to how disease-linked genes would fall in these compartments.
+
+```{r echo=FALSE}
+#Combined three different dataframes into one dataframe
+protein_gene_join <- inner_join(proteins, inner_join(genes, subcell, by="gene_name"), by="gene_name")
+
+#Plotted to see correlation between protein transcript lengths and cellular locations
+p <- ggplot(protein_gene_join, aes(x = location, y = log(transcript_length)))+
+  geom_jitter(aes(color = location), size=1)+
+  geom_boxplot(outlier.shape = NA)+
+  ggtitle("Length of Proteins in Different Cellular Locations")+
+  labs(x="Cellular Location")+
+  labs(y="Protein Transcript Length (log(bp))", caption = "Data from @matthewhirschey | Plot from Alan Rosales")+
+  theme_minimal()
+
+p + scale_x_discrete(labels = abbreviate)+
+  NULL
+
+```
+
+## EDA Graph  
+I chose to explore the relationship between disease-linked genes in Online Mendelian Inheritance in Man (OMIM) and the cellular localization of proteins encoded by said genes. For this analaysis, it was important to only focus on the OMIM data with disease phenotypes.
+
+```{r echo=FALSE}
+
+#Renamed column name in "protein_gene_join" dataframe
+names(protein_gene_join)[names(protein_gene_join) == 'gene_name'] <- 'approved_symbol'
+
+#Removed rows with "NA"
+diseased_gene <- inner_join(omim_genemap, protein_gene_join, by="approved_symbol")
+diseased_gene <- na.omit(diseased_gene)
+
+#Plotted to see correlation between diseased genes and cellular locations
+q <- ggplot(diseased_gene, aes(x = location, y = log(transcript_length)))+
+  geom_jitter(aes(color = location), size=1)+
+  geom_boxplot(outlier.shape = NA)+
+  ggtitle("Length of Proteins Linked to Diseases in Different Celullar Locations")+
+  labs(x="Cellular Location")+
+  labs(y="Protein Transcript Length (bp)", caption = "Data from @matthewhirschey | Plot from Alan Rosales")+
+  theme_minimal()
+
+q + scale_x_discrete(labels = abbreviate)+
+  NULL
+
+```
+
+## EDA Graph  
+I chose to further explore four cellular compartments: Cytoplasm, Extracellular Space, Membrane and the Nucleus.
+
+```{r echo=FALSE}
+
+#Decided to perform further analysis on disease-linked cytoplasmic, extracellular, membrane, and nucleus proteins
+cytp <- diseased_gene %>%
+  filter(location == "Cytoplasm" | location == "Extracellular" | location == "Membrane" | location == "Nucleus")
+
+#Plotted to see correlation between diseased genes and specific cellular locations
+ggplot(cytp, aes(x = location, y = log(transcript_length)))+
+  geom_jitter(aes(color = location), size=1)+
+  geom_boxplot(outlier.shape = NA)+
+  ggtitle("Length of Proteins Linked to Diseases in Specific Cellular Locations ")+
+  labs(x="Cellular Location")+
+  labs(y="Protein Transcript Length (bp)", caption = "Data from @matthewhirschey | Plot from Alan Rosales")+
+  guides(color = "none")+
+  theme_minimal()+
+  NULL
+```
+  
+## Final Graph
+In the end, I wanted to visualize the GC-content for disease-linked genes compared to it's transcript length for the four cellular locations chosen. A desnity plot would best showcase "hotspots" of genes that have been linked to diseases.
+
+```{r final_graph, echo=FALSE}
+ggplot(cytp)+
+  stat_density2d(aes(x = transcript_length, y = gene_percent_gc_content, fill = stat(nlevel)), geom = "polygon")+
+  facet_grid(. ~ cut) + 
+  scale_fill_viridis_c()+
+  facet_wrap(~ location)+
+  ggtitle("Proteins Linked to Diseases in Different Celullar Locations")+
+  labs(x="Transcript Length (bp)")+
+  labs(y="GC-Content Percentage", caption = "Data from @matthewhirschey | Plot from Alan Rosales", subtitle = "Assessing GC-content of proteins linked to diseases with respect to cellular location")+
+  theme_minimal()+
+  theme(legend.position="none")
+
+ggsave(here::here("6_final", "Density_plot.png"), plot = last_plot(), height = 5, width = 7, units = "in", dpi = 300)
+```
+
+## Conclusions
+A greater number of disease-linked genes have transcript lenghts about less than 2500bp and a GC-content of about 40%. There does not seem to be a correlation between GC-content of these disease-linked genes and their transcript sizes. Interstingly though, the disease-linked nucleus genes seem to have higher GC-content percentages at lower transcript sizes. This observation may imply that higher GC-content percentages can be a reason for the gene being linked to a disease.
+
+## Prioritized follow-up studies
+In order to really understand if GC-content can result in a gene being disease-linked, rates of mutation need to be analyzed. I would like to compare rates of mutation for these disease-linked genes to genes that have not been linked to diseases, while taking into consideration the GC-content percentage. It would be interesting to further look into disease-linked nucleus genes and see rate of mutations vs. GC-content percentage.
+
+## Acknolwedgements
+I would like to acknowledge Matthew Hirschey, Akshay Bareja and Allie Mills for the amazing support during the course, and to @rstuio team for making the tidyverse packages (sort of) easy to use.
+
+#Session information for provenance and reproducibility
+```{r}
+utils:::print.sessionInfo(sessionInfo()[-8])
+```
+

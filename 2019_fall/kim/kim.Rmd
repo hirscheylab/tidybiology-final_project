@@ -1,0 +1,246 @@
+---
+title: "Tidybiology Final Project"
+author: "Veronica Kim"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+### Load libraries
+```{r setup, include = FALSE}
+rm(list=ls()) #uncomment (or select) to clear environment; good for provenance
+library(tidyverse)
+```
+
+```{r setup to show, eval = FALSE}
+rm(list=ls())
+library(tidyverse)
+```
+
+### Import data
+Utilizing the UniProt database, I searched for _Chrna_ genes across species.  
+```{r import, include = FALSE}
+# Downloaded from UniProt database and uploaded into my wd for extraction
+Chrna <- read_delim("Chrna.tab.gz", 
+    "\t", escape_double = FALSE, trim_ws = TRUE)
+```
+
+### Take a `glimpse` into the data in the dataframe
+I found that this dataset has 8 variables and 57 observations.  
+```{r glimpse, echo=FALSE}
+#DEPENDING ON DATA, NOT TOTALLY NECESSARY
+glimpse(Chrna)
+```
+
+### EDA
+I wanted to explore whether _Chrna_ properties were conserved across species. I first had to clean up my dataset. I decided to only keep observations from the top six species, as determined by visual inspection.  
+```{r cleaning data, include=FALSE}
+#EXPLORATORY DATA ANALYSIS
+
+Chrna <- Chrna %>% 
+  arrange(Organism) # rearranges table by organism
+
+# Setting Before and After strings to be used in fx
+Org = c("Bovine","Chicken","Human","(Chimp|Rhesus)","Mouse","Rat")
+Org2 = c("Bovine","Chicken","Human","Monkey","Mouse","Rat")
+
+# Creating a fx to simplify repetitive renaming
+OrgRepl <- function(x){
+    Chrna_OrgRepl <- Chrna %>%  
+      filter(str_detect(Organism,Org[x])) %>%
+      mutate(Organism = replace(Organism, Organism != Org[x], Org2[x]))
+    # cat("Organism values for", dim(Chrna_OrgRepl)[1], "observations have been changed to", Org2[x], "\n") # prints what fx did, if desired
+    return(Chrna_OrgRepl)
+}
+
+# Creating another fx to simplify Organism names (Note: calls on previous fx)
+# This one will ammend the object to be available globally
+OrgReplAll <- function(x){
+    Dropt <- filter(Chrna,str_detect(Organism,Org[x])==FALSE)
+    Updt <- OrgRepl(x)
+    if (exists("Chrna_new")==FALSE){
+      Chrna_new <- Updt
+    } else if (exists("Chrna_new")==TRUE){
+      Chrna_new <- union(Chrna_new,Updt)
+    }
+    # cat(Org2[i], "observations have been updated", "\n") # prints what fx did, if desired
+    return(Chrna_new)
+}
+
+# This loop is what runs the functions to simplify Organism names
+# This loop also removes all Other Organisms (i.e., cleaning up b/c I don't want them in my data)
+i<-1
+repeat{
+  Chrna_new <- OrgReplAll(i)
+  i = i+1
+  if (i==length(Org2)+1) {
+  break
+  } 
+}
+
+```
+
+
+
+```{r organism counts, echo=FALSE}
+# This chunk is simply to show ns of species
+# Used original dataset to show the more unique organisms
+Chrna %>% count(Organism, sort = TRUE)
+```
+In other words, I threw out species that only had one or two known genes for simplicity.  
+```{r fx to show, eval=FALSE}
+OrgRepl <- function(x){
+    Chrna_OrgRepl <- Chrna %>%  
+      filter(str_detect(Organism,Org[x])) %>%
+      mutate(Organism = replace(Organism, Organism != Org[x], Org2[x]))
+    # cat("Organism values for", dim(Chrna_OrgRepl)[1], "observations have been changed to", Org2[x], "\n") # fx check
+    return(Chrna_OrgRepl)
+}
+
+OrgReplAll <- function(x){
+    Dropt <- filter(Chrna,str_detect(Organism,Org[x])==FALSE)
+    Updt <- OrgRepl(x)
+    if (exists("Chrna_new")==FALSE){
+      Chrna_new <- Updt
+    } else if (exists("Chrna_new")==TRUE){
+      Chrna_new <- union(Chrna_new,Updt)
+    }
+    # cat(Org2[i], "observations have been updated", "\n") # fx check
+    return(Chrna_new)
+}
+```
+```{r organism counts simplified, echo=FALSE}
+# This chunk is simply to show ns of species
+# Used original dataset to show the more unique organisms
+Chrna_new %>% count(Organism, sort = TRUE)
+```
+
+### EDA Figure  
+I started looking at gene lengths, and perhaps unsurprisingly, they were pretty similar.  
+```{r gene lengths across species, echo=FALSE}
+# Violin plot
+ggplot(Chrna_new, aes(x = Organism, y = log(Length))) +
+  geom_jitter() +
+  geom_violin(scale = "area", alpha = 0.5) +
+  labs(x = "Organism",
+       y = "Log(Gene Length in AA)",
+       title = "Chrna Gene Lengths Are Similar Across Species",
+       caption = "Figure 1. Chrna Gene Lengths Across Species."
+       )
+```
+
+I then became curious about the proportions of amino acids and if they were also conserved. I referred to a table of amino acids from [Dr. Williams at the University of Wisconsin-Madison](http://williams.medicine.wisc.edu/aminoacidcodes.pdf) to use for analysis.  
+```{r amino acids reference, echo=FALSE, message=FALSE}
+# Table adapted from http://williams.medicine.wisc.edu/aminoacidcodes.pdf 
+AA <- read_csv("AminoAcids.csv")
+```
+
+```{r counting amino acids, include=FALSE}
+# Creating new objects to prep for counting amino acids 
+Chrna_seq <- Chrna_new # creating a copy of dataframe to add animo acid sequences (original for safekeeping)
+AAcodes <- unique(AA$`Single Letter Code`) # creates a vector animo acid codes
+SeqChk <- data.frame(t(AAcodes)) # create new placeholder dataframe so that amino acids can become variables
+
+# This loop will rename variables with amino acid code
+i<-1
+repeat {
+  colnames(SeqChk)[i] <- as.character(SeqChk[1,i])
+  i = i+1
+  if (i==length(SeqChk)+1) {
+    break
+  }
+}
+
+# Adding to the placeholder dataset so that it can join with main dataset
+SeqChk <- data.frame("Sequence"="Sequence", SeqChk)
+
+# Creating fx to get total counts for each AA in gene sequence
+countAA <- function(x) {
+  i <- 1
+  repeat {
+  SeqChk[1] = Chrna_seq$Sequence[x]
+  SeqChk[1+i] = str_count(Chrna_seq$Sequence[x],AAcodes[i])
+  # cat(AA2[i], " = ", str_count(Chrna_seq$Sequence[x],AA2[i]), "\n") # prints what fx did, if desired
+  i = i+1
+  if (i==length(AAcodes)+1) {
+    break
+  }
+  }
+  return(SeqChk)
+}
+
+# Counting amino acids in each sequence and storing to dataframe
+j <- length(Chrna_seq$Sequence)
+for(i in 1:j){
+  if (i==1){
+  AA2 <- countAA(i)
+  } else {
+  AA2[i,]=countAA(i)
+  }
+}
+
+# Expanding dataset by joining new information gathered from counting
+Chrna_seq <- inner_join(Chrna_seq,AA2,by = "Sequence") # Our table is nice and pretty, showing occurences of each AA per entry
+```
+
+```{r cleanup, include=FALSE}
+# Replacing Sequence with Organism and Entry information
+AA2 <- add_column(select(AA2,2:length(AA2)), Organism = Chrna_seq$Organism, Entry = Chrna_seq$Entry)
+
+# Reformatting some of the data in a way that I can visualize in subplots
+Chrna_AA <- AA2 %>% 
+  pivot_longer(
+    cols=1:20, # manually defined columns 1-20
+    names_to = "AminoAcid", # new variable name for amino acid codes
+    values_to = "Count" # new variable name for counts of each AA
+    )
+```
+
+I counted the number of amino acids in each sequence I had available.  
+```{r show AA count, echo=FALSE}
+glimpse(AA2)
+```
+
+### Final Figures  
+Here, we see that the occurrence of each amino acid per _Chrna_ is noticeably similar as well.  
+```{r final graph, echo=FALSE, message=FALSE}
+#MAKE IT SHINE
+
+p <- ggplot(Chrna_AA,aes(Organism,Count)) + geom_point(aes(color=Organism),alpha=0.5)
+p + facet_wrap(vars(AminoAcid)) + 
+  labs(title = "Chrna Amino Acids Are Similar Across Species",
+       y = "# Occurrences in Gene",
+       caption = "Figure 2. Amino Acid Distribution in Chrna Across Species. \n Grouped by amino acid. Leucine is very prevalent."
+       ) +
+  theme(axis.text.x = element_blank())
+
+q <- ggplot(Chrna_AA,aes(AminoAcid,Count)) + geom_point(aes(color=AminoAcid),alpha=0.5)
+q + facet_wrap(vars(Organism)) + 
+  labs(title = "Chrna Ingredients Are Similar Across Species",
+       y = "# Occurrences in Gene",
+       x = "Amino Acid",
+       caption = "Figure 3. Amino Acid Distribution in Chrna Across Species. \n Grouped by organism. Leucine is very prevalent."
+       ) +
+  guides(color="none")
+
+# Saving plot for final presentation (ratio is fine for my plot)
+ggsave(here::here("6_final", "AAdistribution.png"), plot = last_plot(), height = 5, width = 7, units = "in", dpi = 300)
+```
+
+### Conclusions
+This analysis confirms that _Chrna_ genes are conserved across species and implies that cholinergic receptors are very important.
+  
+### Prioritized Follow-up Studies
+Next steps would be to include _Chrnb_ genes (omitted for simplicity) and look at the sequential arrangement of amino acids to compare any differences for functional analyses. It would also be interesting to quantify CpG islands as potential for epigenetic modification sites for Chrna gene across species, because the more CpG islands there are for promoter regions in a particular gene, the more potential there is for regulated gene expression ([Stevenson, 2017](https://doi.org/10.1016/j.tig.2017.11.003)).
+
+### Acknolwedgements
+I'd like to thank Dr. Hirschey, Allie, and Akshay for helping us learn R, as well as Google, coffee, and my classmates for supporting me through this 2 week journey.  
+  
+### Session information for provenance and reproducibility
+```{r, echo=FALSE}
+#PROBABLY BEST TO LEAVE THIS HERE, BUT NO NEED TO PRINT IN THE FINAL REPORT.
+utils:::print.sessionInfo(sessionInfo()[-8]) 
+#You can remove an item from sessionInfo(), which is a list with a class attribute, by printing the resulting object omitting one of the list items (omitted list of packages installed, but not loaded)
+```
+

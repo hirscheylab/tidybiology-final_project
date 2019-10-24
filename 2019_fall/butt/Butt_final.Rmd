@@ -1,0 +1,102 @@
+---
+title: "Tidybiology Final Project"
+author: "Faraz Ahmed Butt"
+date: "`r format(Sys.time(), '%B %d, %Y')`" #put in quotes to make YAML recognize it
+---
+## Load libraries
+```{r setup, include=FALSE}
+library(tidyverse)
+library(tidyr)
+library(knitr)
+library(tidybiology)
+#uncomment (or select) to clear environment; good for provenance
+#rm(list=ls()) 
+```
+`r library(tidyverse)`
+
+## Import data
+I loaded the subcell, protein and genes data from Tidybiology and combined them based on gene name.
+```{r import, include=FALSE}
+data(subcell)
+data(proteins)
+data(genes)
+subcell_prot <- left_join(proteins,subcell, by="gene_name")
+subcell_fin <- left_join(subcell_prot,genes,by="gene_name")
+prot_loc <- select(subcell_fin,protein_name,location)
+#IMPORT YOUR DATA
+#MAKE SURE TO GET THE CODE CHUNK OPTIONS SET
+```
+
+## Take a `glimpse` into the data in the dataframe
+The data is a combined data from the prtoeins, subcell and gene data frames available in Tidybiology. The data describes the proteins and their respective gene information along with their subcellular location.
+```{r glimpse}
+glimpse(subcell_fin)
+```
+## EXPLORATORY DATA ANALYSIS (EDA)
+I began by first location at the abundance of proteins in each subcellular location. However I did not find something interesting.
+```{r, echo=FALSE}
+#COMMENCE ROLLING
+#MAKE COMMENTS
+#WRITE WHAT YOU SEE
+ggplot(subcell_fin, aes(x = location, y = log(mass), color=location))+
+ geom_jitter()+theme(axis.text.x = element_text(angle = 90))+labs(x = "Cellular Compartment", y="log(Protein Mass)",title="Complete Cell Proteome Size in Each Cellular Compartment")
+
+```
+
+## EDA Graph  
+Then I thought to look for differences in a class of proteins, so I decided to look at the kinase distribution across cellular compartments and found something interested yet intuitive.  
+
+```{r, echo=FALSE}
+#FIRST I FAILED.
+neww<-  filter(subcell_fin, grepl('kinase', protein_name))
+ggplot(neww, aes(x = location, y = log(mass), color=location))+
+  geom_jitter()+theme(axis.text.x = element_text(angle = 90))+labs(x = "Cellular Compartment", y="log(Protein Mass)",title="All Kinase Size in Each Cellular Compartment")
+neww_fin<-select(neww,protein_name,location)
+centrosome_1 <- filter(neww_fin,location=="Centrosome")
+cytoplasm_1 <- filter(neww_fin,location=="Cytoplasm")
+centrosome <- filter(prot_loc,location=="Centrosome")
+cytoplasm<- filter(prot_loc,location=="Cytoplasm")
+ER_1 <- filter(neww_fin,location=="ER")
+Extracellular_1 <- filter(neww_fin,location=="Extracellular")
+ER <- filter(prot_loc,location=="ER")
+Extracellular<- filter(prot_loc,location=="Extracellular")
+Membrane_1 <- filter(neww_fin,location=="Membrane")
+Mitochondria_1 <- filter(neww_fin,location=="Mitochondria")
+Membrane <- filter(prot_loc,location=="Membrane")
+Mitochondria<- filter(prot_loc,location=="Mitochondria")
+Nucleolus_1 <- filter(neww_fin,location=="Nucleolus")
+Nucleus_1 <- filter(neww_fin,location=="Nucleus")
+Nucleolus <- filter(prot_loc,location=="Nucleolus")
+Nucleus<- filter(prot_loc,location=="Nucleus")
+fin_data <- data.frame("location"=c("Centrosome","Cytoplasm","ER","Extracellular","Membrane","Mitochondria","Nucleolus","Nucleus"),"Ratio_Total_Kinase"=c(dim(centrosome_1)[1]/dim(centrosome)[1], dim(cytoplasm_1)[1]/dim(cytoplasm)[1],dim(ER_1)[1]/dim(ER)[1],dim(Extracellular_1)[1]/dim(Extracellular)[1],dim(Membrane_1)[1]/dim(Membrane)[1],dim(Mitochondria_1)[1]/dim(Mitochondria)[1],dim(Nucleolus_1)[1]/dim(Nucleolus)[1],dim(Nucleus_1)[1]/dim(Nucleus)[1]))
+```
+  
+  **The cell membrane, cytoplasm and the nucleus clearly have a higher number of kinases then the other compartments.**  
+  
+## Final Graph
+
+```{r final_graph, echo=FALSE}
+#MAKE IT SHINE
+ggplot(fin_data, aes(x = location, y = Ratio_Total_Kinase, color=location))+
+  geom_jitter()+theme(axis.text.x = element_text(angle = 90))+ylim(0,0.1)+
+  labs(x = "Cellular Compartment", y="Kinases/Total Proteins",title="Ratio of Kinases to Total Proteins in Each Cellular Compartment")
+
+ggsave(here::here("6_final", "Kinases_Ratio.png"), plot = last_plot(), height = 5, width = 7, units = "in", dpi = 300)
+```
+
+## Conclusions
+Even though the cell membrane, cytoplasm and nucleus have a higher number of kinases, however the ratio of kinases to total proteins in each subcellular compartment does not reflect that. With the centrosome have a much higher kinase to total protein ratio then the rest of the compartments.
+  
+## Prioritized follow-up studies
+Look at signalling events that occur at centrosome during cell division, and how many of these are dependent on kinases.
+
+## Acknolwedgements
+I want to thank the instructors of the class.
+
+#Session information for provenance and reproducibility
+```{r, echo=FALSE}
+#PROBABLY BEST TO LEAVE THIS HERE, BUT NO NEED TO PRINT IN THE FINAL REPORT.
+utils:::print.sessionInfo(sessionInfo()[-8]) 
+#You can remove an item from sessionInfo(), which is a list with a class attribute, by printing the resulting object omitting one of the list items (omitted list of packages installed, but not loaded)
+```
+

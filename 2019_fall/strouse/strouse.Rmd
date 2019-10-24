@@ -1,0 +1,122 @@
+---
+title: "Tidybiology Final Project"
+author: "Kari Strouse"
+date: "`r format(Sys.time(), '%B %d, %Y')`" #put in quotes to make YAML recognize it
+---
+## Load libraries
+```{r setup, include=FALSE}
+library(tidyverse)
+#devtools::install_github("hirscheylab/tidybiology", upgrade = c("always"))
+library(tidybiology)
+library(ggrepel)
+
+#uncomment (or select) to clear environment; good for provenance
+rm(list=ls()) 
+```
+
+```{r, eval=FALSE}
+library(tidyverse)
+library(tidybiology)
+library(ggrepel)
+```
+
+## Import data
+I first imported the Omim_GeneMap dataset which contains summary information of human disease gene variants from the [OMIM database](https://www.omim.org/). I also imported the chromosome summary dataset from [a Wikipedia entry about the human chromosome](https://en.wikipedia.org/wiki/Human_chromosome).
+```{r import, include=FALSE}
+#data(package = "tidybiology")
+data("omim_genemap")
+data("chromosome")
+```
+
+## Take a `glimpse` into the data in the dataframe
+Omim_GeneMap has 16,992 observations with 14 variables.
+```{r glimpse, echo=FALSE}
+glimpse(omim_genemap)
+```
+
+Chromosome has 24 observations (chromosomes), also with 14 variables.  
+```{r, echo=FALSE}
+glimpse(chromosome)
+```
+
+## EDA
+I wanted to visualize the number of OMIM entries on each chromosome.  
+I first cleaned up omim_genemap so that it only included hits that were mapped to a valid chromosome because a few rows contained extraneous information about formatting. 
+```{r, echo=FALSE}
+#view(omim_genemap)
+
+#omim_genemap contained rows with formatting information that began with a # for the number_chromosome variable, so I detected those rows and filtered them out. I also changed number_chromosome to factor type for plotting 
+omim_genemap_clean <- omim_genemap %>% 
+  filter( !str_detect(omim_genemap$number_chromosome, "#") ) %>% 
+  mutate(number_chromosome = as.factor(number_chromosome))
+
+#order factors
+omim_genemap_clean$number_chromosome <- ordered(omim_genemap_clean$number_chromosome, levels = levels(chromosome$id))
+
+
+ggplot(omim_genemap_clean, aes(x=number_chromosome)) + 
+  geom_bar(fill="steelblue") +
+  labs(x = "Chromosome", y = "Number of OMIM entries", title = "Longer chromosomes contain more mendelian disease associations", subtitle = "Number of OMIM entries per chromosome") +
+  theme_minimal() +
+  NULL
+```
+
+## EDA Graph  
+I wanted to investigate the relationship between genetic variation and the number of disease associations on a chromosome.
+```{r, echo=FALSE}
+#% omim hits vs. % variation
+
+#calculate number of omim hits per chromosome, change column to id, and type back to charactor (could also unorder the factor)
+omim_hits_per_chrom <- omim_genemap_clean %>% 
+  group_by(id = as.character(number_chromosome)) %>% 
+  summarise(omim_num = n())
+
+#convert factor type to character type
+chrom_edited <- chromosome %>% mutate(id = as.character(chromosome$id))
+
+#join on id to add number of omim hits to chrom dataset
+chrom_edited <- left_join(chrom_edited, omim_hits_per_chrom, by = "id")
+
+#calculate percent variation in chromosome and percent omim hits in chrom
+chrom_edited <- mutate(chrom_edited, 
+                       percent_var = variations/basepairs, 
+                       percent_omim = omim_num/basepairs
+                       )
+
+ggplot(chrom_edited, aes(x=percent_omim, y=percent_var)) + geom_point()
+
+```
+
+**I see a general trend, but which chromosomes follow this trend more closely than others?**  
+
+## Final Graph
+Because I was interested in comparing two continuous variables, I chose to stick to a scatterplot and add a linear regression line and data point labels for each chromosome.  
+```{r final_graph, echo=FALSE}
+ggplot(chrom_edited, aes(x=percent_omim*100, y=percent_var*100)) + geom_point() + 
+  geom_smooth(formula = y ~ x, method = lm, linetype="dashed", color="darkblue", fill = "lightblue", se = TRUE) + 
+  geom_text_repel(aes(label = id)) + 
+  labs(x = "Percent OMIM entries", y = "Percent Variation", title = "Genetically diverse chromosomes contain more mendelian disease associations", subtitle = "Exceptions include the sex chromosomes, chr8, chr22") + 
+  theme_minimal() +
+  NULL
+
+#save plot 
+ggsave(here::here("6_final", "omim_variation.png"), plot = last_plot(), height = 5, width = 8, units = "in", dpi = 300) 
+```
+
+## Conclusions
+The amount of genetic variation within a chromosome correlates with the amount of mendelian disease associations it contains. The sex chromosomes and chromosome 22 have contain genetic variation than expected given the number of disease associations they contain. 
+  
+## Prioritized follow-up studies
+Since OMIM only contains disease associations from the coding portion of the genome, I would like to compare the amount of was **protein-coding variation** in each chromosome and the number of mendelian disease associations in OMIM.  
+Further, I would like to compare the **total genetic variation** to the number of GWAS hits for common diseases on each chromosome because GWAS results include both coding and non-coding regions.
+
+## Acknolwedgements
+Thank you to Dr. Hirschey and our TA's Allie and Akshay. Shoutout to tidyverse creators for helping to make the world a bit more tidy.
+
+#Session information for provenance and reproducibility
+```{r echo=FALSE}
+#PROBABLY BEST TO LEAVE THIS HERE, BUT NO NEED TO PRINT IN THE FINAL REPORT.
+utils:::print.sessionInfo(sessionInfo()[-8]) 
+#You can remove an item from sessionInfo(), which is a list with a class attribute, by printing the resulting object omitting one of the list items (omitted list of packages installed, but not loaded)
+```
+

@@ -1,0 +1,112 @@
+---
+title: "Tidybiology Final Project"
+author: "Xirui Song"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  word_document: default
+---
+## Load libraries
+```{r setup, include=FALSE}
+#knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(tidybiology)
+library(dplyr)
+#uncomment (or select) to clear environment; good for provenance
+rm(list=ls()) 
+```
+
+## Import data
+I loaded the "mitocarta" file from tidybiology and has already been upload in this work environment.More information realted to this topic can be found in https://www.broadinstitute.org/mitocarta/mito20-column-documentation.
+
+### What is mitocarta and what types of information are included?  
+![](/cloud/project/6_final/2.png)
+```{r import, echo=FALSE}
+data("mitocarta")
+mito<-mitocarta[!grepl("0", mitocarta$mcarta2_list),]
+```
+
+```{r eval=FALSE}
+data("mitocarta")
+mito<-mitocarta[!grepl("0", mitocarta$mcarta2_list),]
+```
+## Take a glimpse into the data in the dataframe
+This dataset contains 43 variables and 1,158 observations. 
+```{r echo=FALSE}
+glimpse(mito)
+```
+
+
+## EDA
+These human genes encoding proteins with strong support of mitochondrial localizations have different mitochondrial domain score. Proteins, however, have different protein domains presences exclusively mitochondrial/MitoDomain, exclusively non-mitochondrial/NonMitoDomain, or ambiguous/SharedDomain in any annotated eukaryotic protein. 
+Therefore, I am curious whether this difference in protein domain influnce the expression of proteins across tissues. 
+```{r echo=FALSE}
+#a<-mito[is.na(mito$mito_domain_score)==TRUE,]
+ggplot(mito[mito$mito_domain_score!='NA',]) +
+  geom_density(aes(x=log(msms_total_intensity),fill=mito_domain_score),alpha=0.2,na.rm = TRUE) +
+  geom_vline(xintercept=mean(log(mito[mito$mito_domain_score=='MitoDomain',]$msms_total_intensity), na.rm = TRUE), linetype="dashed", color = "red")+
+  geom_vline(xintercept=mean(log(mito[mito$mito_domain_score=='NonMitoDomain',]$msms_total_intensity), na.rm = TRUE), linetype="dashed", color = "darkgreen")+
+  geom_vline(xintercept=mean(log(mito[mito$mito_domain_score=='SharedDomain',]$msms_total_intensity), na.rm = TRUE), linetype="dashed", color = "darkblue")+
+  labs(x="Gene Expression (log)", y="Density", title="Protein Mitochrondial Domains and Their Expression Across Tissues", caption="@xiruisong")+
+  theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5))+
+  NULL
+
+```
+
+
+Proteins that have **exclusively non-mitochondrial** have a slightly reduced expression levels compared to other in across tissues. Next, I want to know the expression of these proteins among tissues.
+
+I first investigate the whether genes that codes for proteins contain exclusively mitochrondrial domains (**ND**) tend to express in all tissues examined. 
+
+
+```{r echo=FALSE}
+ND <-filter(mito,mito_domain_score == "NonMitoDomain")
+ND_14 <- ND %>%
+  mutate(all_14 = str_detect(tissues,"all 14"))
+ggplot(ND_14,aes(x=all_14))+
+  geom_bar(aes(),width=0.3, fill ="purple", alpha=0.3)+
+  geom_text(aes(label=..count..),stat="count",position=position_stack(0.5))+
+  labs(x="", y= "Number of Genes", caption="@xiruisong")+
+  ggtitle("Whether These Genes Found in All 14 Tissues")+
+  theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5))+
+  NULL
+
+```
+
+
+Majority of the genes tend to have tissue-specific expressions. 
+  
+## Final Graph
+Which tissues have more ND genes and which have fewer?
+```{r final_graph, echo=FALSE}
+df<-as.data.frame(colSums(!is.na(ND[29:42])))
+rownames(df)<-gsub("_.*", "", rownames(df), perl = TRUE) 
+colnames(df)<-"number_of_gene"
+ggplot(df, aes(x=number_of_gene,y = reorder(rownames(df), -number_of_gene))) +
+  geom_point(stat = "identity", color="mediumpurple2", size=3) +
+  geom_vline(xintercept=mean(df$number_of_gene), linetype="solid", color = "mediumpurple4")+
+  labs(x="Number of genes", y="Tissues", caption="@xiruisong")+
+  ggtitle("Number of ND Genes Within Each Tissue")+
+  theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5))+
+  NULL
+```
+
+## Conclusions
+Gene that encode for proteins that have exludively non-mitochondrial domains are more likely to be expressed in different tissues. Furthermore, there are variations in gene expression among different tissues where heart and kidney have fewer genes expressed and placeta tissues has the highest. 
+  
+## Prioritized follow-up studies
+In this study, I focus on the number of gene expressed in each tissues. It would be interesting to study the whether genes with ND have perferred expression locations. If so, what factors govern this process?
+
+## Acknolwedgements
+I would like to acknowledge Cedric Scherer for plot inspiration, @garretgrom, @hadleywickham, and the @rstuio team for making the tidyverse packages easy to use. I would like to acknowledge our instructor Matt Hirschey, TA Akshay and Allie for the great introduction of R. 
+
+## Session information for provenance and reproducibility
+```{r}
+utils:::print.sessionInfo(sessionInfo()[-8]) 
+```
+

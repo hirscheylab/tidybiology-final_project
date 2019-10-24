@@ -1,0 +1,266 @@
+---
+title: "Tidybiology Final Project: Exploring Heat Related Genes"
+author: "CHELSEA SHOBEN"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+---
+### 1) Load libraries
+```{r setup, include = FALSE}
+
+library(tidyverse)
+library(stringr)
+library(tidybiology)
+
+rm(list=ls()) 
+```
+
+
+##### My personal motivations: Explore genes and/or regions of genome relationship with temperature dependence. (attributes of interest based on my current project exploring thermal plasticity of meiotic recombinaion rates)
+
+## Attempt #1 (uniprot)
+
+
+This data was pulled from uniport.com, I selected reviewed, D. melanogaster, gene name, length, mass, natural variant information, and temperature dependence data. The last part was becasue this is relevant for my current project in lab lookig at recombination rates across different thermal regimes across a group of inbred flies secured from a single, wild population. 
+
+Great practice, but low number of resulting temperature dependent genes extinguished my curiosity in continuing to explore this data set. 
+
+
+## Attempt #2 (tidybiology data)
+
+### 2) Import data
+
+
+```{r, include=FALSE}
+#IMPORT DATA
+data('genes')
+```
+Human 'genes' data from the Tidybiology package. 
+
+### 3) Take a `glimpse` into the data in the dataframe
+```{r}
+glimpse(genes)
+```
+
+Columns include information on gene name, description, chromosome, forward/reverse strand, transcript start/stop and total length, gc percentage, and additional id values. 
+
+
+### 4) EDA
+EXPLORATORY DATA ANALYSIS
+
+Mutated the dataframe to have a boolean for if a gene description included the word 'heat' or not. 
+
+```{r, include=FALSE}
+
+genes2 <- mutate(genes, heat = str_detect(gene_description, "heat"))
+
+
+#At this point I opened the dataframe and upon scrolling around I found I also grabbed any gene with the word "sheath" in the description. This is NOT what I wanted. 
+
+
+```
+
+
+
+```{r,include = FALSE}
+#grabbed only the genes with heat = TRUE and then filtered for a gene that I knew contained the word sheath (but not heat).
+testforsheath <- genes2 %>% 
+  filter(heat == TRUE)
+filter(testforsheath, gene_name == "FSCB")
+
+#confirmed my fear
+```
+
+
+
+```{r, include = FALSE}
+#made new boolean column for sheath. 
+genes3 <- mutate(genes2, sheath = str_detect(gene_description, "sheath"))
+
+#With some more data manipulation I learned there were only five genes that contained the word 'sheath' in their description. 
+
+```
+
+
+
+```{r, include = FALSE}
+#view all sheath genes
+genes3 %>% 
+  filter(sheath == TRUE)
+
+#I've decided to just exclude the sheath genes (since only 5 exist) to make it easier for downstream plotting.
+
+```
+
+
+
+```{r, include=FALSE}
+genes_readytoplot <- 
+ filter(genes3, sheath == FALSE | is.na(sheath))
+```
+
+```{r, include = FALSE}
+#double check the five have been removed
+dim(genes3)
+dim(genes_readytoplot)
+```
+
+
+### 5) EDA Graph  
+Exploratory Data Analysis Graph
+
+```{r, echo = FALSE}
+#FIRST I FAILED. 
+
+# My question, how does the GC-content of temperature related genes compare to the GC content of other genes?
+# My idea is to plot all genes as points, x-axis be GC content, y-axis be chromosome, and color dots by heat or not heat. 
+
+ggplot(genes_readytoplot, aes(x = gene_percent_gc_content, y= transcript_length)) +
+  geom_jitter()+
+  geom_point(aes(color=heat))
+
+```
+Too many dots!
+
+
+```{r, include = FALSE}
+# want to now try to only plot those where heat is true because too many dots.
+# make a new data frame to only include the genes related to heat
+genesheat <- genes_readytoplot %>% 
+  filter(heat == TRUE)
+```
+
+```{r, echo = FALSE}
+ggplot(genesheat)+
+  geom_point(aes(x = gene_percent_gc_content, y= transcript_length))
+```
+
+I thought it would be neat to categorize the heat related genes based on if 'pseudogene' is included in their description. 
+
+
+
+```{r, include = FALSE}
+genesheat <- mutate(genesheat, pseudo = str_detect(gene_description, "pseudo"))
+```
+
+
+
+  
+### 6) Final Graph
+
+
+```{r final_graph, echo = FALSE}
+#MAKE IT SHINE
+
+ggplot(genesheat, aes(x = gene_percent_gc_content, y= transcript_length))+
+  geom_point(aes(color = pseudo)) +
+  geom_smooth() +
+  labs(title = "Heat Related Genes", x = "GC Content", y = "Transcript Length" , color = "Pseudogene?") +
+  theme_light()
+  
+```
+
+```{r}
+genesheatNOPseudo <- genesheat %>% 
+  filter(pseudo == FALSE)
+```
+
+
+```{r, echo = FALSE}
+ggplot(genesheatNOPseudo, aes(x = gene_percent_gc_content, y= transcript_length))+
+  geom_point() +
+  geom_smooth() +
+  labs(title = "Heat Related Genes", subtitle = '(excluding genes labeled as pseudogenes)', x = "GC Content", y = "Transcript Length" , color = "Pseudogene?") +
+  theme_light()
+```
+
+
+
+
+
+
+## Round 3?
+### I really wanted to see if there is a connection between chromosome location, GC content, and heat related genes. 
+
+
+## EDA Graph  
+
+
+
+
+```{r,include = FALSE}
+genesheat_simplechromosome <- 
+ filter(genesheatNOPseudo, chromosome_scaffold_name == "1" | chromosome_scaffold_name == '2' | chromosome_scaffold_name == "3" | chromosome_scaffold_name == "4" | chromosome_scaffold_name == "5" | chromosome_scaffold_name == "6" | chromosome_scaffold_name == "7" | chromosome_scaffold_name == "8" | chromosome_scaffold_name == "9" | chromosome_scaffold_name == "10" | chromosome_scaffold_name == "11" | chromosome_scaffold_name == "12" | chromosome_scaffold_name == "13" | chromosome_scaffold_name == "14" | chromosome_scaffold_name == "15" | chromosome_scaffold_name == "16" | chromosome_scaffold_name == "17" | chromosome_scaffold_name == "18" | chromosome_scaffold_name == "19" | chromosome_scaffold_name == "20" | chromosome_scaffold_name == "21" | chromosome_scaffold_name == "22" | chromosome_scaffold_name == "Y" | chromosome_scaffold_name == "X")
+```
+
+```{r, include = FALSE}
+genesheat_simplechromosome <- mutate(genesheat_simplechromosome, pseudo = str_detect(gene_description, "pseudo"))
+```
+
+
+```{r, include = FALSE}
+glimpse(genesheat_simplechromosome)
+```
+
+
+```{r}
+unique(genes$chromosome_scaffold_name)
+#so many categories!
+```
+
+
+
+```{r, echo = FALSE}
+ggplot(genesheat_simplechromosome, aes(x = factor(chromosome_scaffold_name, levels=c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13","14", "15", "16", "17", "18", "19", "20", "21", "22", "X", "Y")), y= gene_percent_gc_content))+
+  geom_point(aes(color = factor(chromosome_scaffold_name, levels=c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13","14", "15", "16", "17", "18", "19", "20", "21", "22", "X", "Y")))) + labs(title = "Heat Related Genes", x = "Chromosome", y = "GC Content" , color = "Chromosome") +
+  theme_light()
+```
+
+```{r, include = FALSE}
+genes_simplechromosome <- 
+ filter(genes, chromosome_scaffold_name == "1" | chromosome_scaffold_name == '2' | chromosome_scaffold_name == "3" | chromosome_scaffold_name == "4" | chromosome_scaffold_name == "5" | chromosome_scaffold_name == "6" | chromosome_scaffold_name == "7" | chromosome_scaffold_name == "8" | chromosome_scaffold_name == "9" | chromosome_scaffold_name == "10" | chromosome_scaffold_name == "11" | chromosome_scaffold_name == "12" | chromosome_scaffold_name == "13" | chromosome_scaffold_name == "14" | chromosome_scaffold_name == "15" | chromosome_scaffold_name == "16" | chromosome_scaffold_name == "17" | chromosome_scaffold_name == "18" | chromosome_scaffold_name == "19" | chromosome_scaffold_name == "20" | chromosome_scaffold_name == "21" | chromosome_scaffold_name == "22" | chromosome_scaffold_name == "Y" | chromosome_scaffold_name == "X")
+```
+
+```{r, include = FALSE}
+genes_simplechromosome <- mutate(genes_simplechromosome, pseudo = str_detect(gene_description, "pseudo"))
+```
+
+```{r, include = FALSE}
+chromosomefactored <- factor(genes_simplechromosome$chromosome_scaffold_name, levels=c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13","14", "15", "16", "17", "18", "19", "20", "21", "22", "X", "Y"))
+```
+
+
+
+
+## Conclusions
+
+
+My exploring has shown me:
+
+* No correlation between GC content and transcript length of genes labled to be involved with 'heat'. 
+* Location of heat related genes not biased to a particular chromosome. 
+
+
+  
+## Prioritized follow-up studies
+
+
+
+I'd be interested in exploring if the lack of relationship displayed in my last graph is because I did not normalize my chromosome length.
+Being that I work with D. Melanogaster, I think it would make the most sense to do what I did above with genes in melanogaster. 
+
+
+## Acknolwedgements
+
+
+Stackoverflow
+Hirschey squad (Matt, Allie, and Akshay)
+Kari and Maidson 
+
+#Session information for provenance and reproducibility
+
+
+```{r, include = FALSE}
+#PROBABLY BEST TO LEAVE THIS HERE, BUT NO NEED TO PRINT IN THE FINAL REPORT.
+utils:::print.sessionInfo(sessionInfo()[-8]) 
+#You can remove an item from sessionInfo(), which is a list with a class attribute, by printing the resulting object omitting one of the list items (omitted list of packages installed, but not loaded)
+```
+

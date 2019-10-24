@@ -1,0 +1,147 @@
+---
+title: "Tidybiology Final Project"
+author: "Joe Trimarco"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  html_document:
+    df_print: paged
+---
+## Load tidyverse and tidybiology libraries
+```{r setup, include = FALSE}
+library(tidyverse)
+library(tidybiology)
+#uncomment (or select) to clear environment; good for provenance
+rm(list=ls()) 
+```
+
+## Import data
+I wanted to use data from a recent whole-genome CRISPR knockout screen that I completed in my lab. The screen was for host cell factors necessary for viral glycoprotein trafficking during influenza infection. The data set I'm using contains the top 150 hits from the screen with their scores (previously calculated based on sgRNA abundance in the data set) after sequencing analysis. I also loaded the tidybiology subcell dataset because I was interested in the localization of the proteins that we pulled out from the screen. 
+```{r import, include = FALSE}
+#IMPORT YOUR DATA
+traffic <- read_csv("Traf_Sort_Data.csv")
+data("subcell")
+data("genes")
+traffic <- mutate(traffic, inv_score = 1/Sort_score)
+```
+
+## The CRISPR Screen Results Data Set
+The data set from my CRISPR screen contains the top 100 gene hits expressed by `gene_name` and hit scoring based on the `Sort_score`, `Sort_rank`, and a more intuitive expression of the gene hit metric with `inv_score`. All scoring metrics are determined by either `Sort_rank`, which ranks the genes from 1 to 100 based on the confidence of it being a real hit, and `inv_score` where a higher score results in higher confidence of a hit. 
+
+```{r glimpse, echo = FALSE}
+
+glimpse(traffic)
+```
+
+## EDA and Graphs
+At first I thought that localization of the protein hits would be interesting. We expect that these proteins should be localized to the trafficking secretory pathway. To test that, I used the `left_join()` function to merge the CRISPR data set to the subcell data set. Here, I quantified the hit score with respect to the localization of the hit.  
+
+```{r, echo = FALSE}
+
+traffic_set <- left_join(traffic, subcell)
+
+ggplot(data = traffic_set, aes(x = location, y = inv_score)) +
+   geom_point() +
+  coord_trans(y = "log10")  +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(x = "Cellular Compartment", y = "Gene Hit Score", title = "Top 100 Gene Hits by Cellular Compartment")
+```
+
+
+Since it looks like there are more protein hits localized to the cytoplasm, membrane, etc. I wanted to visualize that better. To do that, I made a pie chart to show the localization makeup of our gene hits. 
+
+
+```{r}
+#Count the locations for use in the pie chart  
+traffic_set %>% 
+  count(location) -> locations 
+locations %>% 
+  arrange(n) -> locations
+
+#Needed to get rid of the hits without localization info
+na.omit(locations) -> locations
+
+#Pie chart of my CRISPR protein localization data
+pie(locations$n, labels = locations$location, radius = 1, 
+    main = "Localization of Protein Hits from a CRISPRko Screen")
+```
+
+
+Though this initially looks promising for localization of proteins associated with membrane trafficking, I wanted to compare this to the global localizations of proteins in a human cell. 
+
+
+
+```{r, echo = FALSE}
+
+#Same counting as for the CRISPR set
+subcell %>% 
+  count(location) -> total_loc
+
+total_loc %>% 
+  arrange(n) -> total_loc
+
+#Pie chart of global protein localization data
+pie(total_loc$n, labels = total_loc$location, radius = 1, 
+    main = "Localization of Proteins Globally in a Human Cell")
+
+ 
+
+```
+
+
+
+Unfortunately, our hits are actually very representative of the whole-cell localization of proteins. This finding makes sense however, since our screen was a whole-genome knockout screen and the locations we expected to see our hits are already the most abundant locations for proteins globally. 
+
+
+Next, I wondered where exactly on the chromosomes my gene hits mapped. Therefore, I merged my gene hit data set with the tidybiology genes data set. I plotted the transcription start site for each of my gene hits for each chromosome, and saw that some broad clusters of hits emerged. 
+
+```{r, echo = FALSE}
+traffic_set <- left_join(traffic_set, genes)
+
+#Plotting transccript start site for each chromosome for each of my gene hits
+ggplot(data = traffic_set, aes( x = chromosome_scaffold_name, y = transcript_start_bp))+
+  geom_point() +
+   theme(axis.text.x = element_text(angle = 90, hjust = 1), 
+         plot.title = element_text(hjust = 0.5))+
+  labs(x = "Chromosome", y="Transcription start site location", 
+       title = "Mapping Gene Hits from a CRISPRko Screen")
+```
+  
+  
+### Final Graph
+To investigate if the strongest hits cluster together, I added a gradient to determine where on each chromosome the highest gene hits are. Surprisingly, some of the highest ranked gene hits are clustered on chromosomes 1, 16, and 22, though there are gene hits that are not clustered as well. 
+
+```{r final_graph, echo = FALSE}
+
+ggplot(data = traffic_set, aes( x = chromosome_scaffold_name, y = transcript_start_bp))+
+  geom_point(aes(color = desc(Sort_rank))) +
+  scale_color_gradient(low = "blue", high = "red")+
+  theme_gray()+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1), plot.title = element_text(hjust = 0.5))+
+  labs(x = "Chromosome", y="Transcription start site location (millions bp)", caption = "Data and Plot by Joe Trimarco | Chromosome data from wikipedia",
+       color = "Gene Hit Rank", size = "", title = "Mapping Gene Hits from a CRISPRko Screen") +
+  scale_y_continuous(labels = c(0, 50, 100, 150, 200))
+ 
+```
+
+
+## Conclusions
+Some hits from the CRISPR screen may map to gene clusters which will help with choosing genes for validation. The localization of the proteins pulled out from our screen are not distinct from the global proteins in the cell which implies that a wide variety of proteins can affect the viral trafficking process. 
+  
+## Prioritized follow-up studies
+To follow up, I would investigate which genes are present in the observed small clusters to assign phenotype to some of those clusters. This could be especially promising when dealing with previously uncharacterized genes, which make up a substantial percentage of our hit pool. 
+
+## Acknolwedgements
+Used the Quick-R tutorial page to learn how to make a pie graph with R (https://www.statmethods.net/graphs/pie.html).
+
+Thank you to Jonathan Chang on StackOverflow for the code on how to rotate x axis labels to make the data look much cleaner! (https://stackoverflow.com/questions/1330989/rotating-and-spacing-axis-labels-in-ggplot2)
+
+Continuously referenced the ggplot2 cheatsheet for information on making color gradients and manipulating graph aesthetics. 
+
+
+
+```{r, include = FALSE}
+#PROBABLY BEST TO LEAVE THIS HERE, BUT NO NEED TO PRINT IN THE FINAL REPORT.
+utils:::print.sessionInfo(sessionInfo()[-8]) 
+#You can remove an item from sessionInfo(), which is a list with a class attribute, by printing the resulting object omitting one of the list items (omitted list of packages installed, but not loaded)
+```
+

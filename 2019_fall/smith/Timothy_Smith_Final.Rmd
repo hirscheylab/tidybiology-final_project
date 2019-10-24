@@ -1,0 +1,75 @@
+---
+title: "Tidybiology Final Project"
+author: "Timothy Smith"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  word_document: default
+---
+## Load libraries, such as tidyverse and tidybiology
+```{r setup}
+library(tidyverse)
+library(tidybiology)
+#uncomment (or select) to clear environment; good for provenance
+rm(list=ls()) 
+```
+
+## Import data
+I decided to look into relationships between coding and non coding regions of the human genome.  To do this, I loaded the chromosome summary data, which was originally scraped from [a Wikipedia entry about the human chromosome](https://en.wikipedia.org/wiki/Human_chromosome).
+```{r import}
+data(chromosome)
+#IMPORT YOUR DATA
+#MAKE SURE TO GET THE CODE CHUNK OPTIONS SET
+```
+
+## Take a `glimpse` into the data in the dataframe
+Here we see information on the total number of protein coding genes as well as a variety of non coding forms of RNA.  To do this, I first wanted to create a new column that is the sum of all types of non coding RNA called ncRNA.  
+
+```{r glimpse}
+glimpse(chromosome)
+#DEPENDING ON DATA, NOT TOTALLY NECESSARY
+```
+## EDA
+EXPLORATORY DATA ANALYSIS\
+```{r}
+chromosome <- chromosome %>%
+  mutate(ncRNA = totallongnc_rna + totalsmallnc_rna + miscnc_rna)
+```
+
+#COMMENCE ROLLING
+#MAKE COMMENTS
+#WRITE WHAT YOU SEE
+
+
+## EDA Graph  
+From this graph, we can see there is a clear relationship between the number of protein coding genes and ncRNA.  
+```{r}
+ggplot(chromosome, aes(x = ncRNA, y = protein_codinggenes)) +
+  geom_smooth(formula = y ~ x, method =lm, se = TRUE) +
+  geom_point(color = "slateblue3", size = 3) +
+  labs(x = "Number of Non Coding RNAs", y = "Number of Protein Coding Genes", title = "Protein Expression Correlates with Intron-encoded RNAs", subtitle = "Compared the number of non-coding RNAs to the number of protein-coding genes.", caption = "Data from Wikipedia | Plot from @timothysmith") +
+  theme_gray() +
+  NULL
+```
+
+  
+## Final Graph
+From here, I would like to further investigate which non coding RNAs are the most important.  I will do this by first looking at which types of ncRNA are the most prevelant.  Based on literature, snoRNA in fact, are important in the formation of rRNA, which directly correlates with protein expression.   
+
+## Conclusions
+I would conclude that ncRNAs are very important cis and trans factors based on the numbers presented by the data sets.    
+## Prioritized follow-up studies
+Future studies would entail looking into specific data sets that have information on these specific ncRNAs.    
+
+## Acknolwedgements
+I would like to thank Alan Rosales for being my seat and coffee buddy.  I would like to thank Dr. Hirschey for this exciting introduction to R.  Though it was a little difficult as someone without experience, it was a great introduction and I look forward to working with it in the future.  
+
+#Session information for provenance and reproducibility
+```{r}
+#PROBABLY BEST TO LEAVE THIS HERE, BUT NO NEED TO PRINT IN THE FINAL REPORT.
+utils:::print.sessionInfo(sessionInfo()[-8]) 
+#You can remove an item from sessionInfo(), which is a list with a class attribute, by printing the resulting object omitting one of the list items (omitted list of packages installed, but not loaded)
+```
+

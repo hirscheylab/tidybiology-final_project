@@ -1,0 +1,46 @@
+---
+title: "Playground - Final Project"
+author: "Shannon Dupont"
+date: "10/20/2019"
+output: html_document
+---
+```{r setup}
+library(tidyverse)
+library(tidybiology)
+#uncomment (or select) to clear environment; good for provenance
+rm(list=ls()) 
+```
+
+```{r}
+data("subcell")
+data("chromosome")
+data("proteins")
+data("genes")
+```
+
+```{r}
+MGC_gc_inner <- inner_join(Chromatin_Modifiers_MGCs, location_gc_inner, by = "gene_name")
+```
+
+```{r}
+ggplot(MGC_gc_inner, aes(x=location, y=gene_percent_gc_content))+
+geom_jitter()+
+geom_boxplot(aes(color=location))+
+labs(x="Cellular Compartment", y="GC Content", title= "GC content of genes expressed in different cellular compartments in MGCs")
+```
+
+
+```{r}
+highexpression_14 <- MGC_gc_inner %>% 
+  filter(Fourteen_RPKMmean >= 10)
+highexpression_13 <- MGC_gc_inner %>% 
+  filter(Thirteen_RPKMmean >=10)
+highexpression_12 <- MGC_gc_inner %>% 
+  filter(Twelve_RPKMmean >= 10)
+```
+
+
+```{r}
+
+```
+
