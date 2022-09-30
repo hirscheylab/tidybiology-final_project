@@ -1,0 +1,112 @@
+---
+title: "Tidybiology Final Project"  
+
+output: html_document
+---
+Erin Schroeder 
+2020 November 16
+
+**National trends in COVID-19 and their relationship with NC**
+
+**INTRODUCTION**
+The Covid Tracking Project releases daily covid updates on a national and a state level. They include information on tests (and their results), hospitalizations, ventilator use, and how daily values compare to total COVID-19 information. 
+https://covidtracking.com/ 
+
+```{r, error=FALSE}
+
+library(tidyverse)
+library(gridExtra)
+```
+
+**IMPORT DATA**
+We are going to use two datasets in this project.  The first, COVID_National_History, includes daily values for the entire US whereas the second file, all-state-history, breaks down these values to the state level.  While we are comparing to NC, it is feasible to change the parameters such that you examine a different state.  
+
+```{r}
+COVID_DATA <-read.csv("/Users/erin/Desktop/COVID_National_History.csv")
+glimpse(COVID_DATA)
+```
+
+**DATA WRANGLING**
+After *uploading the data*,  we will manipulate the data frame to include our columns of interest and mutate to form a new column called "positivity rates".  
+```{r}
+COVID_DATA = mutate(COVID_DATA, ventilatorUsage = onVentilatorCurrently / hospitalizedCurrently)
+COVID_DATA = mutate(COVID_DATA, positivityRate = positive / totalTestResults)
+
+Complete_COVID_DATA2 <- COVID_DATA %>% 
+  select(date, death, hospitalizedCurrently, onVentilatorCurrently, positive, totalTestResults, ventilatorUsage, positivityRate) 
+ 
+Complete_COVID_DATA<- Complete_COVID_DATA2 %>% 
+   add_column(state = NA, .after="date")
+
+glimpse(Complete_COVID_DATA)
+```
+
+Now we are going to perform a similar task on a data file containing COVID info broken down to the state level. We will sort and analyze data specific to *North Carolina*.
+```{r}
+COVID_STATE_DATA <-read.csv("/Users/erin/Desktop/all-states-history.csv")
+COVID_STATE_DATA = mutate(COVID_STATE_DATA, NCpositivityRate = positive / totalTestResults)
+INTER_COVID_STATE_DATA <- COVID_STATE_DATA %>% 
+  filter(state == "NC") 
+Complete_COVID_STATE_DATA <- INTER_COVID_STATE_DATA %>% 
+  select(date, NChospitalizedCurrently, NCpositivityRate) 
+
+glimpse(Complete_COVID_STATE_DATA)
+```
+
+We will then *combine the data* from Complete_COVID_DATA (national level) and Complete_COVID_STATE_DATA (North Carolina level) to compare trends.  
+```{r}
+Combined_DATA <- merge(Complete_COVID_DATA, Complete_COVID_STATE_DATA)
+
+glimpse(Combined_DATA)
+```
+
+**DATA VISUALIZATION**
+Next it's time to visualize the number of daily hospitalizations at a National and State (NC) level. Because it is not possible to add a break in our scale using ggplot2, I have included two graphs to enlarge the data for NC. 
+```{r}
+P1 <- ggplot(data=Combined_DATA, aes(x= date))+
+  geom_bar(aes(y=hospitalizedCurrently), stat="identity", fill='lightblue', alpha=factor(0.1))+
+  geom_bar(aes(y=NChospitalizedCurrently), stat="identity", fill='pink', color= 'pink')+
+  ggtitle("COVID-19 Hospitalizations") +
+  xlab("Date") + ylab("Number of Hospitalizations")
+
+P2 <- ggplot(data=Combined_DATA, aes(x= date))+
+  geom_bar(aes(y=hospitalizedCurrently), stat="identity", fill='lightblue', alpha=factor(0.8))+
+  geom_bar(aes(y=NChospitalizedCurrently), stat="identity", fill='pink', alpha=factor(2))+
+  ylim(NA, 2500)+
+  ggtitle("COVID-19 Hospitalizations") +
+  xlab("Date") + ylab("Number of Hospitalizations")
+
+grid.arrange(P1, P2, ncol = 2)
+```
+
+Since it is difficult to determine how well trends in NC compare with the national hospitalization rates, we might want to consider what percentage of COVID tests at the national vs. state level come back positive.  
+```{r}
+ggplot(data=Combined_DATA, aes(x=date))+
+  geom_bar(aes(y=NCpositivityRate), stat="identity", fill='pink', color= 'pink')+
+  geom_bar(aes(y=positivityRate), stat="identity", fill='lightblue', alpha=factor(0.1))+
+ggtitle("Percentage of Positive Covid Tests") +
+  xlab("Date") + ylab("Percent Positive")
+```
+
+**CONCLUSIONS**
+While it appears that the percentage of positive covid cases trends between the National and State level, there is a significant increase in positive rates from about 6% to 15% beginning in April.  This is most likely due to the "first covid wave" where the number of tests performed increased drastically as more tests became available.  
+
+**PRIORITIZED FOLLOW_UP STUDIES**
+While it appears that you can use NC data as a predictor for National covid positive case rates, it does not provide specific questions about individual outcomes.  Specifically, it has been previosuly suggested that there are case and outcome disparities between different races.  Followup studies could examine how race plays a role in percentage of positive cases, hospitalization, ICU usage, and deaths in comparison to the number of cases each race represents.  
+
+The Covid Tracking Project also collects this data
+```{r}
+COVID_RACE<-read.csv("/Users/erin/Desktop/Race Data Entry - CRDT.csv")
+INTER_COVID_RACE <- COVID_RACE %>% 
+  filter(State == "NC") %>% 
+  filter(Date == "20201111")
+glimpse(INTER_COVID_RACE)
+```
+
+
+**ACKNOLWEDGEMENTS**
+Thank you to the instructors of TidyBiology and my classmates for their assistance in learning R and working on this project.  I would aslo like to acknowledge The Covid Tracking Project for their data and the StackOverflow community for troubleshooting problems I had while developing this code.  
+
+
+
+

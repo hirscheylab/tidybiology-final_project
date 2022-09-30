@@ -1,0 +1,156 @@
+---
+title: "Effect of miRNA Binding on SHAPE Reactivity"
+output: html_document
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE)
+library(tidyverse)
+library(knitr)
+library(dplyr)
+library(ggplot2)
+library(ggsignif)
+library(readxl)
+```
+<br>
+
+## SHAPE-MaP Analysis
+RNA molecules fold onto themselves via complementary base pairing to form unique secondary structures. SHAPE-MaP uses chemical-modifying reagents (SHAPE reagents) and bioinformatic pipelines to predict secondary structures in an RNA. Nucleotides with high SHAPE reactivity are "exposed" and likely to be unstructured. Nucleotides with low SHAPE reactivity are likely to be embedded in structured regions.
+
+```{r, out.width="60%", fig.align="center", fig.cap="Owens, M. C., Clark, S. C., Yankey, A., & Somarowthu, S. (2019). Identifying Structural Domains and Conserved Regions in the Long Non-Coding RNA lncTCF7. International journal of molecular sciences, 20(19), 4770. https://doi.org/10.3390/ijms20194770"}
+knitr::include_graphics('/Users/Caroline/Downloads/SHAPE_MaP_Example.png')
+```
+
+
+
+```{r}
+#Goal
+#Compare SHAPE reactivity of miR7 binding sites with non-miR7 binding sites in circular RNA CDR1as to gauge the confounding effects of miRNA binding on predictions of secondary structure.
+```
+
+
+## CDR1as SHAPE-MaP Data
+
+```{r}
+#This SHAPE-MaP data is for a circular RNA called CDR1as
+
+SHAPE <- read_excel("/Users/Caroline/CMB_Tutorial/SHAPE_R.xlsx")
+SHAPE
+
+SHAPE_graph <- SHAPE %>%
+ filter(Nucleo_Num >= 613L & Nucleo_Num <= 680L) %>%
+ filter(SHAPE_Reactivity >= -0.5 & SHAPE_Reactivity <= 
+ 4 | is.na(SHAPE_Reactivity)) %>%
+  ggplot() +
+  aes(x = Nucleo_Num, y = SHAPE_Reactivity) +
+  geom_step(size = 0.5, colour = "#112446") +
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = 0, ymax = 0.4, alpha = 0.2, fill = "black") +
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = 0.4, ymax = 0.85, alpha = 0.2, fill = "orange") +
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = 0.85, ymax = 4, alpha = 0.2, fill = "red") +
+  labs(x = "Nucleotide Number", y = "SHAPE Reactivity") +
+  theme_minimal()
+SHAPE_graph
+```
+<br>
+
+## Annotated miR7 Binding Sites
+
+CDR1as harbors over 70 miR7 binding sites of partial complementarity, allowing it to sponge miR7 without getting degraded. We hypothesize that binding of these miR7s could potentially "protect" the nucleotides from SHAPE modification. Because the bioinformatic pipeline does not account for intermolecular interactions, miR7 binding could be confounding a substantial portion of predicted secondary structures.
+
+```{r}
+SHAPE_graph_miR <- SHAPE_graph +
+annotate("rect", xmin = 616, xmax = 621, ymin = -Inf, ymax = 4, alpha = 0.2, fill = "turquoise1") +
+  annotate("rect", xmin = 634, xmax = 639, ymin = -Inf, ymax = 4, alpha = 0.2, fill = "turquoise1") +
+    annotate("rect", xmin = 652, xmax = 657, ymin = -Inf, ymax = 4, alpha = 0.2, fill = "turquoise1") +
+    annotate("rect", xmin = 671, xmax = 676, ymin = -Inf, ymax = 4, alpha = 0.2, fill = "turquoise1") 
+SHAPE_graph_miR
+```
+
+<br>
+
+## Comparison of SHAPE Reactivity in non-miR7 vs. miR7 Binding Sites
+
+Because the data does suggest that miR7 could be confounding predictions of secondary structure, I want to take a closer look and compare the SHAPE reactivity of non-miR7 binding sites with miR7 binding sites.
+
+
+**Labeling miR7 Binding Sites**
+```{r, echo = TRUE}
+
+filter_miR7_SHAPE <- SHAPE %>% 
+  mutate(site = cumsum(ifelse(Nucleotide == "U" & 
+                            lead(Nucleotide, 1) == "C" & 
+                                lead(Nucleotide, 2) == "U" &
+                                    lead(Nucleotide, 3) == "U" &
+                                        lead(Nucleotide, 4) == "C" &
+                                            lead(Nucleotide, 5) == "C", 1, 0))) %>% 
+ filter(site != 0) %>% 
+ group_by(site) %>% 
+ slice(1L:6L)
+
+pre_miR7_SHAPE <- inner_join(SHAPE, filter_miR7_SHAPE)
+
+miR7_shape <- 
+  pre_miR7_SHAPE %>% 
+  mutate(miR7 = TRUE)
+miR7_shape
+```
+
+<br>
+
+**Labeling non-miR7 binding sites**
+
+```{r, echo = TRUE}
+pre_no_miR7_SHAPE <- anti_join(SHAPE, pre_miR7_SHAPE, by = c("Nucleo_Num"))
+
+no_miR7_SHAPE <-
+  pre_no_miR7_SHAPE %>% 
+  mutate(miR7 = FALSE)
+no_miR7_SHAPE
+
+```
+
+<br>
+
+**Compiled SHAPE-MaP data with miR7 and non-miR7 labels**
+
+```{r, echo = TRUE}
+pre_SHAPE_filtered <-
+  full_join(miR7_shape, no_miR7_SHAPE)
+
+SHAPE_filtered <- arrange(pre_SHAPE_filtered, Nucleo_Num)
+SHAPE_filtered
+
+```
+
+<br>
+
+**SHAPE Reactivity in non-miR7 vs. miR7 Binding Sites**
+
+```{r, warning = FALSE}
+SHAPE_filtered_plot <- ggplot(SHAPE_filtered, aes(x=miR7, y=SHAPE_Reactivity)) +
+  geom_violin() +
+  labs(y="SHAPE Reactivity") +
+  scale_x_discrete(breaks=c("FALSE","TRUE"), 
+                   labels=c("non-miR7 Binding Sites", "miR7 Binding Sites")) +
+  theme(axis.title.x = element_blank(), axis.text.x = element_text(size=11, color = "black")) +
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = 0, ymax = 0.4, alpha = 0.3, fill = "black") +
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = 0.4, ymax = 0.85, alpha = 0.3, fill = "orange") +
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = 0.85, ymax = 4, alpha = 0.3, fill = "red")
+
+SHAPE_filtered_plot_sig <- SHAPE_filtered_plot + geom_signif(comparisons = list(c("FALSE", "TRUE")), test = "t.test", map_signif_level = TRUE) 
+SHAPE_filtered_plot_sig
+
+```
+
+## Conclusion
+
+The extent of low SHAPE reactivity in miR7 binding sites likely reflects "protection" of these nucleotides by miR7 from SHAPE-modifying reagents rather than areas of secondary structure.
+
+## Future Directions
+
+Perform SHAPE-MaP on cytoplasmic and nuclear fractions of CDR1as and compare predicted structures. The nuclear fraction will provide SHAPE-MaP data unconfounded by miR7 binding while maintaining biological relevance.
+
+## Acknowledgements
+I'd like to thank my former research lab, the Pecot lab, at UNC-Chapel Hill and my mentor Dr. Emily Harrison for training me to do SHAPE-MaP and providing endless support and advice as I analyzed the data. I'd also like to thank our collaborator Dr. Mark Boerneke from the Weeks lab at UNC-Chapel Hill for training me to run the SHAPE-MaP bioinformatic pipelines and analyze the output files.
+
+I'd also like to thank Dr. Hirschey and the TAs, Akshay Bareja D.Phil, Junqi Lu, and Devang Thakkar for answering my many (**many**) questions throughout the course and teaching me how to use R. And for when I still had questions, I'd like to thank Stack Overflow, Google, and Youtube for coming to the rescue. And for when even Google couldn't help me fix my code, I'd like to thank coffee and my dog for emotional support.

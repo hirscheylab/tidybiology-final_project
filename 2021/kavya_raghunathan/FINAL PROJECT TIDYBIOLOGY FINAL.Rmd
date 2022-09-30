@@ -1,0 +1,330 @@
+---
+title: "Investigating the Role of TTBK2 on Cilia Formation"
+author: "Kavya Raghunathan"
+date: "October 1, 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidybiology)
+library(dplyr)
+library(ggplot2)
+library(ggrepel)
+#devtools::install_github("thomasp85/patchwork")
+library(patchwork)
+#loading my dataset into R:
+library(readxl)
+final_dataset <- read_excel("final_dataset.xlsx")
+p0_dataset <- read_excel("p0_dataset.xlsx")
+```
+# Background
+The Goetz Lab studies primary cilia, cellular organelles that play an important role in cellular-signaling and protein trafficking via various developmental pathways. Sarah identified TTBK2 (tau-tubulin kinase 2), a kinase that is essential for initial stages of cilia assembly: removing negative regulators of cilia and recruiting intraflagellar transport proteins that assemble the cilia. 
+
+There is a lack of information regarding the role TTBK2 plays in Purkinje cells (found primarily in the cerebellum) development and cilia formation. Therefore, P0 and P32 cerebellum from Wild Type and TTBK2 Knockouts (TTBK2 KO) mice were dissected, sectioned, and stained for Calbindin and Arl13b, markers for Purkinje cells and cilia, respectively. 
+
+## Main Dataset
+To begin, I imported my datasets for both time points (P0 and P32): each data point represents one image and contains the folia imaged, mouse genotype, number of Purkinje cells in the image, and number of ciliated cells in the image (= number of cilia).
+```{r}
+head(final_dataset)
+head(p0_dataset)
+```
+
+### Cilia Frequency by Age
+
+First, I calculated cilia frequency for each image for each age by dividing the number of cilia by the number of Purkinje cells, mainly so I can use this to graph my error bars later on. I next parsed WT data from TTBK2 KO data to calculate  cilia frequency in each age and condition by dividing the number of Purkinje cells by the  number of cilia in each condition.
+```{r include=FALSE}
+#need to calculate cilia frequency for p0 and p32 by dividing number of cilia by number of #purkinje
+#P32
+final_dataset_cilia <- final_dataset %>%
+  mutate(cilia_frequency = (num_cilia/num_pn)*100)
+#P0
+final_p0_dataset_cilia <- p0_dataset %>%
+  mutate(cilia_frequency = (num_cilia/num_pn)*100)
+
+#make two data sets with wt and mutant for p0 and p32 data separately, label, then combine
+#P32
+wild_type_data <- final_dataset_cilia%>%
+  filter(grepl('Wild', genotype_id))
+label <- c('Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type')
+time <- c('P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32')
+wild_type_data$Genotype <- label
+wild_type_data$Age <- time
+mutant_data <- final_dataset_cilia%>%
+  filter(grepl('Mutant', genotype_id))
+label <- c('TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO')
+time <- c('P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32', 'P32')
+mutant_data$Genotype <- label
+mutant_data$Age <- time
+compare_p32_cilia_frequency <- wild_type_data%>%
+  bind_rows(mutant_data)
+
+#P0
+wild_type_p0_data <- final_p0_dataset_cilia%>%
+  filter(grepl('Wild', genotype_id))
+label <- c('Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type','Wild Type', 'Wild Type')
+time <- c('P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0')
+wild_type_p0_data$Genotype <- label
+wild_type_p0_data$Age <- time
+mutant_p0_data <- final_p0_dataset_cilia%>%
+  filter(grepl('Mutant', genotype_id))
+label2 <- c('TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO', 'TTBK2 KO')
+time <- c('P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0', 'P0')
+mutant_p0_data$Genotype <- label2
+mutant_p0_data$Age <- time
+compare_p0_cilia_frequency <- wild_type_p0_data%>%
+  bind_rows(mutant_p0_data)
+```
+
+I combined these two data sets together to easily compare cilia frequency.
+```{r}
+#combine the two to plot
+compare_p0p32_frequency <- compare_p32_cilia_frequency%>%
+  bind_rows(compare_p0_cilia_frequency)
+head(compare_p0p32_frequency)
+```
+
+And finally created a grouped barplot. It's pretty clear that cilia frequency is greatly reduced in TTBK2 KO compared to WT, and while cilia frequency increases over time in WT conditions, it decreases in the KO.
+```{r echo=FALSE, message=FALSE}
+compare_p0p32_frequency_mod <- compare_p0p32_frequency %>% group_by(Age, Genotype) %>% summarise(mean_cf=mean(cilia_frequency), sd_cf=sd(cilia_frequency))
+
+#plotting grouped bar graph to compare age dependent cilia frequency
+ggplot(compare_p0p32_frequency_mod) +
+  aes(x = Age, fill = Genotype, y = mean_cf) +
+  geom_bar(stat='identity', position = "dodge") +
+  ylim(0,100)+
+  scale_fill_hue(direction = 2) +
+  labs(y = "Cerebellar Cilia Frequency (Cilia/PN)", caption = "Emma Ebright | Goetz Lab") +
+  theme_linedraw()+
+  geom_errorbar(aes(ymin=mean_cf-sd_cf, ymax=mean_cf+sd_cf), width=.2,position=position_dodge(.9))
+```
+
+### Cilia Frequency By Folia
+
+Because not much is known about Purkinje cells and cilia in the cerebellum, I separated out data by folia to calculate cilia frequency from both P0 and P32 datasets.
+```{r include=FALSE}
+#foliaII
+
+folia_II_wt <- compare_p32_cilia_frequency%>%
+  filter(grepl('I/II', folia))%>%
+  filter(grepl('Wild', genotype_id))
+folia_II_mutant <- compare_p32_cilia_frequency%>%
+  filter(grepl('I/II', folia))%>%
+  filter(grepl('Mutant', genotype_id))
+compare_folia_II <- folia_II_wt%>%
+  bind_rows(folia_II_mutant)
+
+#foliaIII
+folia_III_wt <- compare_p32_cilia_frequency%>%
+  filter(grepl('III', folia))%>%
+  filter(grepl('Wild', genotype_id))
+folia_III_mutant <- compare_p32_cilia_frequency%>%
+  filter(grepl('III', folia))%>%
+  filter(grepl('Mutant', genotype_id))
+compare_folia_III <- folia_III_wt%>%
+  bind_rows(folia_III_mutant)
+
+#foliaVI
+folia_VI_wt <- compare_p32_cilia_frequency%>%
+  filter(grepl('VI', folia))%>%
+  filter(grepl('Wild', genotype_id))
+folia_VI_mutant <- compare_p32_cilia_frequency%>%
+  filter(grepl('VI', folia))%>%
+  filter(grepl('Mutant', genotype_id))
+compare_folia_VI <- folia_VI_wt%>%
+  bind_rows(folia_VI_mutant)
+
+#foliaIX
+folia_IX_wt <- compare_p32_cilia_frequency%>%
+  filter(grepl('IX', folia))%>%
+  filter(grepl('Wild', genotype_id))
+folia_IX_mutant <- compare_p32_cilia_frequency%>%
+  filter(grepl('IX', folia))%>%
+  filter(grepl('Mutant', genotype_id))
+compare_folia_IX <- folia_IX_wt%>%
+  bind_rows(folia_IX_mutant)
+
+#combine P32 all into one data set
+compare_folia_A <- compare_folia_II%>%
+  bind_rows(compare_folia_III)
+compare_folia_B <- compare_folia_A%>%
+  bind_rows(compare_folia_VI)
+compare_folia_32 <- compare_folia_B%>%
+  bind_rows(compare_folia_IX)
+#head(compare_folia_32)
+
+#P0 same thing lolz
+#foliaII
+p0folia_II_wt <- compare_p0_cilia_frequency%>%
+  filter(grepl('I/II', folia))%>%
+  filter(grepl('Wild', genotype_id))
+p0folia_II_mutant <- compare_p0_cilia_frequency%>%
+  filter(grepl('I/II', folia))%>%
+  filter(grepl('Mutant', genotype_id))
+p0compare_folia_II <- p0folia_II_wt%>%
+  bind_rows(p0folia_II_mutant)
+
+#foliaIII
+p0folia_III_wt <- compare_p0_cilia_frequency%>%
+  filter(grepl('III', folia))%>%
+  filter(grepl('Wild', genotype_id))
+p0folia_III_mutant <- compare_p0_cilia_frequency%>%
+  filter(grepl('III', folia))%>%
+  filter(grepl('Mutant', genotype_id))
+p0compare_folia_III <- p0folia_III_wt%>%
+  bind_rows(p0folia_III_mutant)
+
+#foliaVI
+p0folia_VI_wt <- compare_p0_cilia_frequency%>%
+  filter(grepl('VI', folia))%>%
+  filter(grepl('Wild', genotype_id))
+p0folia_VI_mutant <- compare_p0_cilia_frequency%>%
+  filter(grepl('VI', folia))%>%
+  filter(grepl('Mutant', genotype_id))
+p0compare_folia_VI <- p0folia_VI_wt%>%
+  bind_rows(p0folia_VI_mutant)
+  
+#foliaIX
+p0folia_IX_wt <- compare_p0_cilia_frequency%>%
+  filter(grepl('IX', folia))%>%
+  filter(grepl('Wild', genotype_id))
+p0folia_IX_mutant <- compare_p0_cilia_frequency%>%
+  filter(grepl('IX', folia))%>%
+  filter(grepl('Mutant', genotype_id))
+p0compare_folia_IX <- p0folia_IX_wt%>%
+  bind_rows(p0folia_IX_mutant)
+
+#combine P0 all into one data set
+p0compare_folia_A <- p0compare_folia_II%>%
+  bind_rows(p0compare_folia_III)
+p0compare_folia_B <- p0compare_folia_A%>%
+  bind_rows(p0compare_folia_VI)
+compare_folia_0 <- p0compare_folia_B%>%
+  bind_rows(p0compare_folia_IX)
+#head(compare_folia_0)
+```
+
+and combined them into one set for easy graphing:
+```{r}
+#combine P32 and P0
+compare_p0p32_folia <- compare_folia_0%>%
+  bind_rows(compare_folia_32)
+head(compare_p0p32_folia)
+```
+
+The graphs show that cilia frequency is once again depleted in KO conditions compared to WT, and that cilia frequency itself remains consistent throughout all folia in both WT and KO conditions. Cilia frequency in TTBK2 KO is greatly affected in P32 cerebellum compared to P0 cerebellum.
+```{r echo=FALSE, message=FALSE}
+#plot cilia/folia between wt and ko in p0
+# DEVANG:
+# The easiest way seems to add a dummy row with value 0 for TTB2 KO
+compare_folia_0_mod <- bind_rows(
+  compare_folia_0, data.frame(folia="IX", Genotype="TTBK2 KO", cilia_frequency=0))
+# DEVANG:
+# in order to add error bars, we need the mean and some kind of error metric - I used standard deviation, you can use something else like standard error if you want.
+compare_folia_0_mod <- compare_folia_0_mod %>% group_by(folia, Genotype) %>% summarise(mean_cf=mean(cilia_frequency), sd_cf=sd(cilia_frequency))
+
+#ok trying this for the second graph
+compare_folia_32_mod <- compare_folia_32 %>% group_by(folia, Genotype) %>% summarise(mean_cf2=mean(cilia_frequency), sd_cf2=sd(cilia_frequency))
+
+ggplot(compare_folia_0_mod) +
+  # DEVANG:
+  # i tried setting y instead of the weight in aes and it gave an error. So I googled it and edited the geom_bar
+  # as per: https://stackoverflow.com/questions/61068031/error-stat-count-can-only-have-an-x-or-y-aesthetic
+  aes(x = folia, fill = Genotype, y = mean_cf) +
+  geom_bar(stat='identity', position = "dodge") +
+  ylim(0,100)+
+  scale_fill_hue(direction = 2) +
+  labs(x = "Folia", title = "P0", y = "Cilia Frequency (Cilia/PN)", caption = "Emma Ebright | Goetz Lab") +
+  theme_linedraw() +
+  geom_errorbar(aes(ymin=mean_cf-sd_cf, ymax=mean_cf+sd_cf), width=.2,position=position_dodge(.9))
+
+#plot cilia/folia between wt and ko in p32
+ggplot(compare_folia_32_mod) +
+  aes(x = folia, fill = Genotype, y = mean_cf2) +
+  geom_bar(stat='identity', position = "dodge") +
+  ylim(0,100)+
+  scale_fill_hue(direction = 2) +
+  labs(x = "Folia", title = "P32", y = "Cilia Frequency (Cilia/PN)", caption = "Emma Ebright | Goetz Lab") +
+  theme_linedraw()+
+  geom_errorbar(aes(ymin=mean_cf2-sd_cf2, ymax=mean_cf2+sd_cf2), width=.2,position=position_dodge(.9))
+```
+
+### Looking At Each Folia
+
+My PI was interested in looking at specific Purkinje cell development in folia by age, so I took out individual folia data from my datasets to graph and compare each folia:
+```{r}
+p0p32folia_II_ <- compare_p0p32_folia%>%
+  filter(grepl('I/II', folia))
+p0p32folia_III_ <- compare_p0p32_folia%>%
+  filter(grepl('III', folia))
+p0p32folia_VI_ <- compare_p0p32_folia%>%
+  filter(grepl('VI', folia))
+p0p32folia_IX_ <- compare_p0p32_folia%>%
+  filter(grepl('IX', folia))
+```
+
+```{r include=FALSE, message=FALSE}
+
+compare_folia_II_mod <- p0p32folia_II_ %>% group_by(Age, Genotype) %>% summarise(mean_cf=mean(cilia_frequency), sd_cf=sd(cilia_frequency))
+compare_folia_III_mod <- p0p32folia_III_ %>% group_by(Age, Genotype) %>% summarise(mean_cf=mean(cilia_frequency), sd_cf=sd(cilia_frequency))
+compare_folia_VI_mod <- p0p32folia_VI_ %>% group_by(Age, Genotype) %>% summarise(mean_cf=mean(cilia_frequency), sd_cf=sd(cilia_frequency))
+compare_folia_IX_mod <- p0p32folia_IX_ %>% group_by(Age, Genotype) %>% summarise(mean_cf=mean(cilia_frequency), sd_cf=sd(cilia_frequency))
+```
+
+This is another way of illustrating that cilia frequency significantly decreases in TTBK2 KO conditions and further decreases from P0 to P32. Cilia frequency (in both WT and KO conditions) remains consistent despite folia.
+```{r echo=FALSE}
+#plotting grouped bar graph to compare age against cilia frequency in each folia
+p1 <- ggplot(compare_folia_II_mod) +
+  aes(x = Age, fill = Genotype, y = mean_cf) +
+  geom_bar(stat='identity', position = "dodge") +
+  ylim(0,100)+
+  scale_fill_hue(direction = 2) +
+  labs(title = "Folia II", y = "Cilia Frequency (Cilia/PN)")+
+  theme_linedraw()+
+  geom_errorbar(aes(ymin=mean_cf-sd_cf, ymax=mean_cf+sd_cf), width=.2,position=position_dodge(.9))
+
+p2 <- ggplot(compare_folia_III_mod) +
+  aes(x = Age, fill = Genotype, y = mean_cf) +
+  geom_bar(stat='identity', position = "dodge") +
+  ylim(0,100)+
+  scale_fill_hue(direction = 2) +
+  labs(title = "Folia III", y = "Cilia Frequency (Cilia/PN)")+
+  theme_linedraw()+
+  geom_errorbar(aes(ymin=mean_cf-sd_cf, ymax=mean_cf+sd_cf), width=.2,position=position_dodge(.9))
+
+p3 <- ggplot(compare_folia_VI_mod) +
+  aes(x = Age, fill = Genotype, y = mean_cf) +
+  geom_bar(stat='identity', position = "dodge") +
+  ylim(0,100)+
+  scale_fill_hue(direction = 2) +
+  labs(title = "Folia VI", y = "Cilia Frequency (Cilia/PN)")+
+  theme_linedraw()+
+  geom_errorbar(aes(ymin=mean_cf-sd_cf, ymax=mean_cf+sd_cf), width=.2,position=position_dodge(.9))
+
+p4 <- ggplot(compare_folia_IX_mod) +
+  aes(x = Age, fill = Genotype, y = mean_cf) +
+  geom_bar(stat='identity', position = "dodge") +
+  ylim(0,100)+
+  scale_fill_hue(direction = 2) +
+  labs(title = "Folia IX", y = "Cilia Frequency (Cilia/PN)", caption = "Emma Ebright | Goetz Lab") +
+  theme_linedraw()+
+  geom_errorbar(aes(ymin=mean_cf-sd_cf, ymax=mean_cf+sd_cf), width=.2,position=position_dodge(.9))
+
+my_plots <- (p1 + p2 + p3 + p4)
+my_plots
+```
+
+### Conclusions
+
+Cilia frequency vastly decreases in Purkinje cells of TTBK2 KO cerebellums compared to Wild Type cerebellums throughout development in mice. Based on this analysis, TTBK2 is essential for cilia formation in Purkinje cells in the cerebellum. Loss of TTBK2 may play a role in abnormal neurodevelopment in ciliopathies such as Okur-Chung syndrome, in which underdeveloped cerebellums are a common developmental defect. The above provides an initial view into cilia assembly during development and in ciliopathies.
+
+### Future Directions
+In addition to analyzing cilia frequency in Purkinje cells, we are interested in including more time points (P8, P20) to get a better look into cilia maintenance and disassembly during development. To get a good picture of cerebellar ciliation during embryogenesis, it would be interesting to look at cilia frequency in Purkinje precursors (staining for Olig2, FoxP2 expression) in various embryological stages. 
+
+### Thank You:
+Emma Ebright (Goetz Lab) for helping dissect, section, stain, and image mouse brains to create this dataset.
+Devang Thakkar for being the GOAT and hopping on a Zoom at 4:37PM.
+My mom for telling me that I'm a "hacker" now.
+
+
+

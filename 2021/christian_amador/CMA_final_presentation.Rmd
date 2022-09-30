@@ -1,0 +1,125 @@
+---
+title: "Prioritizing Epigenetic Scars in Human T cells"
+author: "Christian McRoberts Amador"
+date: "9/29/2021"
+output:
+  html_document:
+    toc: true
+    toc_depth: 5
+    toc_float: true
+---
+Libraries required:
+```{r message=FALSE}
+library(tidyverse)
+library(readxl)
+```
+### **Exhausted T cells maintain "Epigenetic Scars"**  
+![](C:\\Users\\Christian\\Downloads\\Figure6D_clean.png)  
+Citation: ["Epigenetic scars of CD8+ T cell exhaustion persist after cure of chronic infection in humans"](https://www.nature.com/articles/s41590-021-00979-1#Sec2)  
+
+Reading in the [supplementary table](https://static-content.springer.com/esm/art%3A10.1038%2Fs41590-021-00979-1/MediaObjects/41590_2021_979_MOESM3_ESM.xlsx): 
+```{r message=FALSE}
+epi_scars <- read_excel('C:\\Users\\Christian\\OneDrive\\Documents\\Duke\\Gersbach Lab\\R scripts\\Epigenetic scarring screen\\41590_2021_979_MOESM3_ESM.xlsx', sheet=6)
+epi_intensity <- read_excel('C:\\Users\\Christian\\OneDrive\\Documents\\Duke\\Gersbach Lab\\R scripts\\Epigenetic scarring screen\\41590_2021_979_MOESM3_ESM.xlsx', sheet=3)
+```
+
+Cleaning up data for semi_join function: 
+```{r}
+epi_unchanged_scars <- epi_scars %>% 
+  filter(`Pattern in HCV Tet+ at Late Timepoint...2`== 'Unchanged') %>% 
+  mutate('ID' = `ID (Scarred)`) 
+```
+
+Semi_joining relevant genomic coordinates:
+```{r}
+epi_unchanged_intensity <- semi_join(epi_intensity, epi_unchanged_scars, by = 'ID')
+```
+
+#### Arranging, selecting, and filtering for log2Fold change 
+* **If FoldChange > 1, log2(FoldChange) > 0** -> Peak is more accessible in Naive T cells versus the HCV conditions  
+* If FoldChange = 1, log2(FoldChange) = 0  
+* **If 0 < FoldChange < 1, log2(FoldChange) < 0** -> Peak is more accessible in the HCV conditions than in Naive T cells  
+
+Obtaining unique peaks in naive:
+```{r}
+epi_unchanged_naive_unique <- epi_unchanged_intensity %>% 
+  arrange(desc(`log2FC: Group Naive_late vs HCV_late`)) %>% 
+  select(ID:End,`log2FC: Group Naive_late vs HCV_late`) %>% 
+  filter(`log2FC: Group Naive_late vs HCV_late` >= 1)
+```
+
+Obtaining unique peaks in HCV:
+```{r}
+epi_unchanged_HCV_unique <- epi_unchanged_intensity %>% 
+  arrange(`log2FC: Group Naive_late vs HCV_late`) %>% 
+  select(ID:End,`log2FC: Group Naive_late vs HCV_late`) %>% 
+  filter(`log2FC: Group Naive_late vs HCV_late` <= -1)
+```
+
+### **ChIPseeker**  
+ChIPseeker is a package originally designed for ChIP-seq data analysis, but it can be applied to ATAC-seq data  
+Creating bed files to annotate regions of interest with ChIPseeker:
+```{r}
+epi_unchanged_naive_unique %>% 
+  select(Chr:End) %>%
+  write.table('epi_unchanged_naive_unique.bed', col.names = FALSE, row.names = FALSE, quote = FALSE, sep = "\t")
+epi_unchanged_HCV_unique %>%
+  select(Chr:End) %>%
+  write.table('epi_unchanged_HCV_unique.bed', col.names = FALSE, row.names = FALSE, quote = FALSE, sep = "\t")
+```
+
+Loading ChIPseeker and relevant packages:
+```{r message=FALSE}
+library(rtracklayer)
+library(ChIPseeker)
+library(org.Hs.eg.db)
+library(TxDb.Hsapiens.UCSC.hg19.knownGene)
+```
+
+#### Annotating unique **naive** genomic regions:
+```{r}
+unchanged_naive_unique_bed <- import("C:\\Users\\Christian\\OneDrive\\Documents\\Duke\\Gersbach Lab\\R scripts\\Epigenetic scarring screen\\epi_unchanged_naive_unique.bed")
+peak_annotation <- annotatePeak(unchanged_naive_unique_bed, tssRegion = c(-3000,3000), 
+                               TxDb = TxDb.Hsapiens.UCSC.hg19.knownGene , level = "gene", 
+                               annoDb="org.Hs.eg.db", assignGenomicAnnotation = TRUE)
+peak_annotation
+plotAnnoPie(peak_annotation)
+unchanged_naive_unique_annotated <- as.data.frame(peak_annotation)
+write.csv(unchanged_naive_unique_annotated,'unchanged_naive_unique_annotated.csv')
+```
+
+
+#### Annotating unique **HCV** genomic regions:
+```{r}
+unchanged_HCV_unique_bed <- import("C:\\Users\\Christian\\OneDrive\\Documents\\Duke\\Gersbach Lab\\R scripts\\Epigenetic scarring screen\\epi_unchanged_HCV_unique.bed")
+peak_annotation <- annotatePeak(unchanged_HCV_unique_bed, tssRegion = c(-3000,3000), 
+                               TxDb = TxDb.Hsapiens.UCSC.hg19.knownGene , level = "gene", 
+                               annoDb="org.Hs.eg.db", assignGenomicAnnotation = TRUE)
+peak_annotation
+plotAnnoPie(peak_annotation)
+unchanged_HCV_unique_annotated <- as.data.frame(peak_annotation)
+write.csv(unchanged_HCV_unique_annotated,'unchanged_HCV_unique_annotated.csv')
+```
+
+#### Graphing the frequency of each gene for both comparisons:
+```{r}
+unchanged_naive_unique_annotated %>% 
+  count(SYMBOL, sort=TRUE) %>% 
+  head(5) %>% 
+  ggplot(aes(x=reorder(SYMBOL,-n), y=n)) +
+  geom_col() +
+  ggtitle ('Most represented genes in Naive') +
+  xlab('Gene ID') +
+  ylab('Count') +
+  theme_minimal()
+unchanged_HCV_unique_annotated %>% 
+  count(SYMBOL, sort=TRUE) %>% 
+  head(5) %>% 
+  ggplot(aes(x=reorder(SYMBOL,-n), y=n)) +
+  geom_col() +
+  ggtitle ('Most represented genes in HCV') +
+  xlab('Gene ID') +
+  ylab('Count') +
+  theme_minimal()
+```
+

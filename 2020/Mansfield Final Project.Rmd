@@ -1,0 +1,159 @@
+---
+title: "TidyBiology Final Project"
+author: "Chris Mansfield"
+date: "11/15/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+#Loading tidyverse and tidybiology for analysis
+library(tidyverse)
+library(tidybiology)
+```
+
+## Background ##
+### Molecular Chaperones in _Plasmodium_ Parasites ###
+_Plasmodium_ parasites are the causative agents of Malaria. They have a complex life cycle going from a mosquito vector, and, after transmission, establish a dual-stage infection in the liver and erythrocytes of a human host. They are subjected to extreme environmental stress as they progress through these developmental microenvironments, and as they persist through extended periods of extreme temperature during malarial fever. As an adaptation, **they have a highly active _molecular chaperone_ system to maintain proteostasis**. In particular, Hsp90 and associated co-chaperones facilitate re-folding and/or degradation of stress-denatured proteins.While Hsp90 is widely conserved (albeit has a 6 times higher ATPase activity in _Plasmodium_ than humans, reflecting higher demands), co-chaperones differ between species and serve as regulatory mechanisms for Hsp90 activity. A large complement of co-chaperones are known for humans, but not for _Plasmodium_. **The purpose of this investigation was to determine potential _Plasmodium_ co-chaperones based on a potential Hsp90 binding motif across the proteome and correlate it with RNAseq expression data at through the developmnent of infection.**
+
+## Analysis ##
+### Datasets ###
+Three public access datasets were primarily used for analysis: 1) the human proteome from UniProt, 2) the _Plasmodium falciparum_ proteome from UniProt, and 3) _Plasmodium falciparum_ blood-stage RNAseq from PlasmoDB. RNAseq data from four time-points post-infection were taken and combined to a single timeline dataset. Here are some glimpses inside the datasets:
+
+```{R datasets, include = FALSE}
+#Imported and preparing datasets
+
+human_proteome <- read_delim("human_proteome.tab",
+    "\t", escape_double = FALSE, trim_ws = TRUE)
+
+plasmodium_proteome <- read_delim("plasmodium_proteome.tab", 
+    "\t", escape_double = FALSE, trim_ws = TRUE)
+
+#RNAseq dataset was compiled from 4 individual timepoint files, and additional timepoint column was added to final file
+RNAseq <-  mutate((read_delim("8_RNAseq.txt", "\t", escape_double = FALSE, trim_ws = TRUE)), time_point = "08") %>%
+  union(mutate((read_delim("16_RNAseq.txt", "\t", escape_double = FALSE, trim_ws = TRUE)), time_point= "16")) %>%
+  union(mutate((read_delim("24_RNAseq.txt", "\t", escape_double = FALSE, trim_ws = TRUE)), time_point = "24")) %>%
+  union(mutate((read_delim("32_RNAseq.txt", "\t", escape_double = FALSE, trim_ws = TRUE)), time_point = "32"))
+
+```
+
+#### The Proteome Datasets ####
+
+```{R glimpse_proteome, echo =FALSE}
+#To display proteome glimpse on markdown
+glimpse(human_proteome)
+
+```
+
+#### The RNAseq Datasets #### 
+
+```{R glimpse_RNAseq, echo = FALSE}
+ #To display RNAseq glimpse on markdown 
+glimpse(RNAseq)
+```
+
+### Identifying TPR Motifs ###
+Hsp90 is known to bind co-chaperones that contain TPR Motifs. These include a wide range of proteins, with loose sequence similarity and largely aligned by their structural motif of tandem alpha-helices.This makes identification by sequence difficult. But, there has been a reported conserved motif of **"K..(G|A)(N|T)..........A...Y"** in Hsp90 binding TPR proteins. Thus this motif was used to identify potential co-chaperones across the human and _Plasmodium_ proteomes, using the following code to append presences of TPR as a column in the proteome datasets:
+
+```{R proteome_comparision, echo =FALSE}
+
+#Adding and identifying TPR_motif as a variable across both proteome data sets
+human_proteome <- mutate(human_proteome, TPR_motif = str_detect(Sequence, "K..(G|A)(N|T)..........A...Y"))
+human_TPR <- filter(human_proteome, TPR_motif == TRUE)
+
+plasmodium_proteome <- mutate(plasmodium_proteome, TPR_motif = str_detect(Sequence, "K..(G|A)(N|T)..........A...Y"))
+plasmodium_TPR <- filter(plasmodium_proteome, TPR_motif == TRUE)
+
+#TPR_status is used to label the preceding data set that overlays Plasmodium and human proteomes and TPR_motif subsets
+TPR_status <- c("FALSE" = "Non-TPR Proteins", "TRUE" = "TPR Proteins")
+ggplot(data = human_proteome) +
+  geom_area(aes(x = log(Length)), stat = "bin", binwidth = 0.3, fill = "red", alpha = 0.5) +
+  geom_area(data = plasmodium_proteome, aes(x = log(Length)), stat = "bin", binwidth = 0.3, fill = "blue", alpha = 0.75) +
+  facet_wrap(vars(TPR_motif), scales = "free_y", labeller = labeller(TPR_motif = TPR_status) ) +
+  labs(title = "Plasmodium and Human Proteosome Comparision", x = "Protein Size (Log(Length))", y = "Total Number of Proteins") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+<span style="color: red;">O-Human</span> 
+<span style="color: blue;">O-Plasmodium</span>
+
+
+### Identifying Changes In TPR Expression Through Infection ###
+**_All_** proteins that were identified as potential _Plasmodium_ Hsp90 co-chaperones were extracted from the RNAseq data set to compare their expression throughout the course of infection in the following heat map:
+
+```{R TPR_seq, echo = FALSE}
+#The RNA_seq data for each entry in the TPR_motif was used to create RNAse_TPR variable
+RNAseq_TPR <- inner_join(RNAseq, plasmodium_TPR, by = "Entry")
+
+#Time_status used as a label for the following plot that shows the RNAseq heat map for each of the TPR_motif proteins
+time_status <- c("08" = "8 hours", "16" = "16 hours", "24" = "24 hours", "32" = "32 hours")
+ggplot(RNAseq_TPR, aes(x = time_point, y = Entry)) + 
+  geom_tile(aes(fill=Fold_Change)) +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", name = "Fold Change") +
+  labs(title = "Plasmodium TPR Expression Over Time", x = "Time After Infection (Hours)", y = "UniProt ID") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+### Comparing FKBP35 Expression to Hsp90 ###
+UniProt ID Q814V8 was the most upregulated throughout infection, and this turns out to correspond to the protein FKBP35.The expression of FKBP35 was then compared to Hsp90 (identified from the datasets by it conserved **MEEVD** motif) over the course of infection to determine any correlation:
+
+```{R Hsp90_FKBP35_seq, echo=FALSE}
+
+#Adding hsp90_motif as a variable to the Plasmodium proteosome, then using hsp90_motif = TRUE to filter RNA_seq data
+plasmodium_proteome <- mutate(plasmodium_proteome, hsp90_motif = str_detect(Sequence, "MEEVD"))
+hsp90_timepoints <- filter(plasmodium_proteome, hsp90_motif == TRUE) %>%
+  inner_join(RNAseq, plasmodium_hsp90, by = "Entry")
+
+#Combined dataset of Hsp90 and FKBP35 RNAseq
+FKBP35__hsp90_timepoints <- filter(RNAseq_TPR, Entry == "Q8I4V8") %>%
+  union_all(hsp90_timepoints)
+
+#Plotting Hsp90 and FKBP35 expression over time
+ggplot(data = FKBP35__hsp90_timepoints, aes(x = time_point, y = Fold_Change, group = Product_Description, color = Product_Description)) +
+  geom_line(size = 1) + 
+  geom_point(size = 3) +
+  labs(title = "Hsp90 and FKBP35 Expression Patterns", x = "Time After Infection (Hours)", y = "Fold Change") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggsave("FKBP35__hsp90_expression_over_time.png")
+```
+
+## Conclustions ##
+### Summary ###
+Overall, this approach was able to extract potential Hsp90 co-chaperones from the _Plasmodium_ proteome. Most potential co-chaperones did not exhibit differential expression throughout blood-stage infection, except for FKBP35. FKBP are well known Hsp90 binding proteins, supporting this method of identification. FKBP35 has some preliminary data supporting its binding to Hsp90, but the significance of this interaction does not seems to be entirely determined. Hsp90 itself also has an increase in expression at comparable time points. The ~2.5 fold increase does not seem as drastic as FKBP35's ~15 fold increase, but Hsp90 already comprises 1-2% of cytosolic proteins under normal conditions and a 2-fold increase is about what is expected in response to environmental stress. OVerall, this study has identified an interesting lead into FKBP35 as a co-chaperone with Hsp90 involved in proteostasis at the early stages of _Plasmodium_ blood infection.
+
+### Follow-up Studies ###
+Future studies could be conducted to 1) confirm the binding of Hsp90 to FKBP35, and 2) to investigate FKBP35's role in blood-stage development. Binding studies could be conducted by completing co-immunoprecipitation for FKBP35 in heat shock (Hsp90-enriched) specimen. Knock-out with siRNA could then be conducted to assess loss of FKBP35 in infection. Heat shock could be added as an additional variable to assess its direct effects on Hsp90 stress response pathways.
+
+### Acknowledgements ###
+Thank you to Prof Hirschey and the entire TidyBiology class for this helpful intro to R!
+
+### Questions? ###
+#
+#
+#
+#
+#
+#
+#
+#
+
+
+
+
+
+
+### References ###
+HSP90 Info: Taipale M, Jarosz DF, Lindquist S. 2010. HSP90 at the hub of protein homeostasis: emerging mechanistic insights. Nat Rev Mol Cell Biol 11: 515–528
+
+Plasmodium Specific HSP90: Banumathy G, Singh V, Pavithra SR, Tatu U. Heat shock protein 90 function is essential for Plasmodium falciparum growth in human erythrocytes. J Biol Chem. 2003;278(20):18336- 18345 
+
+TPR Motif: Clemens Scheufler, Achim Brinker, Gleb Bourenkov, Stefano Pegoraro, Luis Moroder, Hans Bartunik, F.Ulrich Hartl, Ismail Moarefi,
+Structure of TPR Domain–Peptide Complexes: Critical Elements in the Assembly of the Hsp70–Hsp90 Multichaperone Machine,
+Cell,Volume 101, Issue 2,2000,Pages 199-210,
+
+FKBP35: Alag R, Bharatham N, Dong A, et al. Crystallographic structure of the tetratricopeptide repeat domain of Plasmodium falciparum FKBP35 and its molecular interaction with Hsp90 C-terminal pentapeptide. Protein Sci. 2009;18(10):2115-2124. doi:10.1002/pro.226
+
+```{r provenance, include=FALSE}
+session_provenance()

@@ -1,0 +1,283 @@
+---
+title: "Gene Expression in the Brain"
+author: "Taylor Niehoff"
+date: "9/31/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+#library setup
+knitr::opts_chunk$set(echo = TRUE)
+library(tidybiology)
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(devtools)
+library(scRNAseq)
+library(esquisse)
+library(cowplot)
+library(BiocManager)
+library(DEGreport)
+library(ggpubr)
+library(matrixStats)
+```
+
+## **Variations in Gene Expression in the Brain**
+
+#### **scRNAseq Data**
+
+I utilized the [scRNAseq data table](https://github.com/DevangThakkar/scRNAseq) from Devang Thakkar. This contains RNAseq data from 10 cells from the heart, brain, and kidney. RNAseq data allows us to look at the expression level of all RNA transcripts inside the cell and their identity.
+```{r, echo=FALSE}
+#load and show RNA seq data
+scRNAdata <- scRNAseq
+glimpse(scRNAdata)
+```
+
+&nbsp;
+&nbsp;
+
+#### **Locating Brain Cells**
+
+I am interested in neuroscience, so I wanted to look at RNA expression in just the cells located in the brain, neurons or otherwise. To locate the brain cells, I calculated the mean expression levels of genes upregulated in the brain for each individual cell.
+
+```{r, include=FALSE}
+#Calculating mean expression of brain transcripts in each cell to determine if the cells are located in the brain.
+brain_data <- scRNAdata %>%
+  filter(organ == "brain") %>%
+  select("gene_name" | "organ" | contains("cell")) %>%
+  arrange(desc(gene_name)) %>%
+  group_by(organ) %>%
+  summarise(mean(cell_1), mean(cell_2), mean(cell_3), mean(cell_4), mean(cell_5), mean(cell_6), mean(cell_7), mean(cell_8), mean(cell_9), mean(cell_10))
+brain_data
+
+```
+From analyzing the data, cells 3, 5, and 10 all have much higher mean expression of brain-upregulated genes, so these are the cells located in the brain.
+
+&nbsp;
+&nbsp;
+
+```{r,include=FALSE}
+#Creating boxplots for the 3 brain cells to compare their expression of each organ subtype
+#Creating custom color scheme
+my4cols <- c("dodgerblue1", "firebrick1", "palegreen3", "black")
+#Creating the 3 plots - all three are the same except for which cell
+c3 <- ggplot(scRNAdata) +
+  aes(x = organ, y = cell_3, color = organ) +
+  geom_boxplot(shape = "circle") +
+  labs(title = "Cell 3", x = "Organ", y = "Expression") +
+  theme_minimal_hgrid() +
+  scale_color_manual(values = my4cols) + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), plot.title = element_text(size =14), axis.title = element_text(size = 12)) + 
+  theme(legend.position = "none")
+c5 <- ggplot(scRNAdata) +
+  aes(x = organ, y = cell_5, color = organ) +
+  geom_boxplot(shape = "circle") +
+  labs(title = "Cell 5", x = "Organ", y = "Expression") +
+  theme_minimal_hgrid() +
+  scale_color_manual(values = my4cols) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), plot.title = element_text(size =14), axis.title = element_text(size = 12)) +
+  theme(legend.position = "none")
+c10 <- ggplot(scRNAdata) +
+  aes(x = organ, y = cell_10, color = organ) +
+  geom_boxplot(shape = "circle") +
+  labs(title = "Cell 10", x = "Organ", y = "Expression") +
+  theme_minimal_hgrid() +
+  scale_color_manual(values = my4cols) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), plot.title = element_text(size =14), axis.title = element_text(size = 12)) +
+  theme(legend.position = "none")
+
+```
+
+```{r,echo=FALSE}
+#Taking the 3 cells graphs from the last code chunk and arranging them into one figure
+figure <- ggarrange(c3, c5, c10,
+                    ncol = 3, nrow = 1)
+#Adding a title to the figure
+annotated_figure <- annotate_figure(figure, top = text_grob("Brain Cells", size = 18))
+annotated_figure
+```
+
+**Figure 1:** To verify that cells 3, 5, and 10 are located in the brain, I plotted RNA expression against the organ that the transcript/gene is upregulated in. In all three cells, brain-upregulated genes were significantly higher expressed than heart or kidney-upregulated genes, verify that these are brain cells.
+
+&nbsp;
+&nbsp;
+
+#### **Variations in Expression Across Brain-Upregulated Genes**
+
+After determining that cells 3, 5, and 10 are located in the brain, I decided to look at mean expression of each gene that is upregulated in the brain to see if there are any major differences. I also looked at the variation in expression of each gene in the different cells to see if expression varies by cell.
+
+&nbsp;
+&nbsp;
+
+```{r, include=FALSE}
+#Creating a more simplified dataset with only cells 3, 5, and 10 and only including organ = brain genes
+organ_brain <- scRNAdata %>%
+  filter(organ == "brain")
+brain_cells <- organ_brain %>%
+  select("gene_name" | "gene_percent_gc_content" | "gene_start_bp" | "gene_end_bp" | "cell_3" | "cell_5" | "cell_10")
+
+#Creating a dataset with only the numbers for cells 3, 5, and 10 - making it easier to perform calculations
+brain_cells_numbers <- organ_brain %>%
+  select("cell_3" | "cell_5" | "cell_10")
+
+#Taking the mean across the rows for cells 3, 5, and 10 to find a mean expression for each gene
+brain_cells$mean_expression <- rowMeans(brain_cells_numbers)
+
+#Calculating the standard deviation of this mean expression
+brain_cells$std_expression <- rowSds(as.matrix(brain_cells_numbers))
+
+#Finding the overall mean expression for all brain genes in the three cells
+brain_cells %>% 
+  summarise(mean(mean_expression))
+```
+
+```{r, echo=FALSE}
+#Creating a bar graph of the mean expression of each brain gene
+ggplot(brain_cells, aes(x = gene_name, y = mean_expression)) +
+         geom_bar(stat = "identity", color = "blue") +
+#Adding error bars from the standard deviation calculated befor
+         geom_errorbar(aes(ymin=mean_expression- std_expression, ymax=mean_expression+std_expression), width=.2) +
+  theme_minimal_hgrid() +
+#Adding the overall mean expression as a horizontal line to compare each individual gene to  
+  geom_hline(yintercept = 100.28, linetype = "dashed", color = "red") +
+  theme(axis.text.x=element_blank(), axis.ticks.x=element_blank()) +
+  labs(title = "Average Expression of Upregulated \n Genes in the Brain", x= "Genes", y = "Mean Expression") +
+  theme(plot.title = element_text(size = 14), axis.title = element_text(size=12))
+```
+
+**Figure 2:** Expression of genes upregulated in the brain is consistent across genes with expression of all the genes close to the overall mean expression (100.28). Variation between cells for most of the genes is small, indicating that expression is relatively stable across the different cells.
+
+&nbsp;
+&nbsp;
+
+***
+## **Analysis of Genes Upregulated in the Brain**
+
+#### **Differences between Organs**
+
+I decided to take a deeper dive into the genes upregulated in the brain to see if these genes were different from genes upregulated in other organs.
+
+&nbsp;
+&nbsp;
+
+```{r, echo=FALSE}
+#Annotation to label specific genes on the plot below
+annotation <- data.frame(x = c(800000,1400000), y = c(12000,10000), label = c("SPOCK3,OPCML,SYT1", "CTNNA2"))
+#Filtering out other since we just want to look at organ specific data
+no_other_data <- scRNAdata %>%
+  filter(organ == "brain" | organ == "heart" | organ == "kidney")
+#Plot comparing gene size to transcript size by organ
+ggplot(no_other_data, aes(x = (gene_end_bp-gene_start_bp), y = transcript_length, color = organ)) +
+  geom_point(shape = "circle", size = 2) +
+  theme_minimal_grid() +
+  labs(title = "Relationship between Gene Length \n and Transcript Length", x = "Gene Length", y = "RNA Transcript Length") +
+  theme(plot.title = element_text(size = 14), axis.title = element_text(size=12)) +
+#adding in the annotation from earlier  
+  geom_text(data = annotation, aes(x=x, y=y, label=label), color = "black", size = 3)
+
+
+```
+
+**Figure 3:** Most genes, regardless of organ, have similar gene and RNA transcript size. However, four genes (SPOCK3, OPCML, SYT1, CTNNA2) upregulated in the brain have very large gene lengths, but not higher transcript lengths. This indicates that these genes include more regulatory regions, introns, or both.
+
+&nbsp;
+&nbsp;
+
+#### **% GC Content's Relationship to Transcript Length**
+
+After noticing these four outliers in the brain-upregulated genes, I decided to look if % GC content changes with gene length.
+
+GC content is higher in coding regions, so an overall lower GC content could indicate more regulatory regions or introns.
+
+&nbsp;
+&nbsp;
+
+```{r, echo=FALSE, message=FALSE}
+#creating a graph of gene length vs gc content in genes upregulated in the brain
+ggplot(organ_brain, aes(x=(gene_end_bp-gene_start_bp), y=gene_percent_gc_content)) +
+  geom_point(shape = "circle", aes(color = (gene_end_bp-gene_start_bp) > 500000)) +
+  geom_smooth(method = "lm") +
+  theme_minimal_grid() +
+  theme(legend.title = element_blank()) +
+#removing legend since it's redundant  
+  theme(legend.position = "none") +
+  labs(x = "Gene Length", y = "% CG Content", title = "Relationship between Gene Length \n and GC % in Brain-Upregulated Genes") +
+  theme(plot.title = element_text(size = 14), axis.title = element_text(size = 12)) +
+  geom_cor(method = "pearson")
+```
+
+**Figure 4:** For genes upregulated in the brain, percent GC content is negatively-correlated with gene length. This indicates that these larger genes likely have more regulatory region or introns, as expected. The four outlier genes with larger gene lengths are in blue. 
+
+&nbsp;
+&nbsp;
+
+## **GC Content's Relationship with Gene Expression**
+
+Since these larger genes appear to have more regulatory regions, I decided to look in expression levels of the various genes. I explored the relationship between GC content and gene expression. Since GC content may indicate amount of regulatory regions, it may affect expression levels.
+
+&nbsp;
+&nbsp;
+
+```{r, include=FALSE}
+#Creating dataframe with both percent GC content and all three cells
+brain_cells <- organ_brain %>%
+  select("gene_name" | "gene_percent_gc_content" | "gene_start_bp" | "gene_end_bp" | "cell_3" | "cell_5" | "cell_10")
+#creating dataframe with just numbers to make later computations easier
+brain_cells_numbers <- organ_brain %>%
+  select("cell_3" | "cell_5" | "cell_10")
+#calculaing the mean expression for each gene and adding it to the data table at the top of the code chunk
+brain_cells$mean_expression <- rowMeans(brain_cells_numbers)
+#checking dataset
+brain_cells
+```
+
+```{r, echo=FALSE, message=FALSE}
+#creating scatterplot comparing mean expression and percent GC content
+ggplot(brain_cells, aes(x = mean_expression, y = gene_percent_gc_content)) +
+#coloring the outlier genes of interest from before  
+  geom_point(shape = "circle", aes(color = (gene_end_bp-gene_start_bp) > 500000)) +
+  geom_smooth(method = "lm") + 
+  theme_minimal_grid() +
+  theme(legend.title = element_blank()) +
+  theme(legend.position = "none") + 
+  labs(title = "Relationship between GC % and \n Expression of Brain-Upregulated Genes", x = "Mean Expression", y = "% GC Content") +
+  theme(plot.title = element_text(size=14), axis.title = element_text(size=12)) + 
+  geom_cor(method = "pearson")
+
+
+```
+
+**Figure 5:** There is no relationship between the expression of a brain-upregulated gene and its' percent GC content. This indicates that the length of introns or regulatory regions may not affect gene expression. The four genes of interest are indicated in blue.
+
+&nbsp;
+&nbsp;
+
+***
+## **Conclusions**
+* The three brain cells from the RNAseq dataset all have relatively similar expression of genes upregulated in the brain. This may indicate that these cells all come from the same region in the brain or same cell type (neurons, glia, etc.).
+* The brain has some genes (SPOCK3, OPCML, SYT1, CTNNA2) that have long gene lengths and short transcript lengths, indicating these genes likely have more regulatory regions or introns.
+* These outlier genes have a lower GC content than genes with shorter lengths, because they are not as enriched for coding regions.
+* This difference in GC content has no effect on expression.
+
+&nbsp;
+&nbsp;
+
+## **Future Directions**
+* Is gene expression more varied in different areas of the brain or among different cell types in the brain?
+* What are the regulatory regions or introns in the four outlier genes upregulated in the brain?
+* Does GC content have a role in expression for other types of genes?
+
+&nbsp;
+&nbsp;
+
+***
+
+## **Acknowledgements**
+Thank you to Dr. Hirschey and the TAs (Devang, Junqi, Akshay) for a great class and for your continued help and support. Thank you to Devang for providing the RNA seq dataset. Thank you to the creators of R Markdown Cookbook for a helpful guide to coding in R.
+
+## **Code for Reproducibility**
+```{r ref.label=knitr::all_labels(), echo = T, eval = F}
+
+```
+
+

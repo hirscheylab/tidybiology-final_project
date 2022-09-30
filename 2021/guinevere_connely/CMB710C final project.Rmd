@@ -1,0 +1,157 @@
+---
+title: "CMB 710C Final Project"
+author: "Guinevere Connelly"
+date: "9/29/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(message = FALSE)
+
+library(ggplot2)
+library(tidyverse)
+library(ggrepel)
+library(fontawesome)
+library('ggplot2')
+library('dplyr')
+library('ggsignif')
+library('tidybiology')
+library(cowplot)
+library(ggcorrplot)
+library(ggpubr)
+```
+
+## Analyzing the Chromosome dataset
+
+### Background `r fa("seedling")`
+The data was obtained from the [tidybiology] package 
+
+Below is the data from the chromosome data frame. There are 24 rows and 14 columns. The 24 rows representing chromosomes 1-22, X and Y. The 14 columns representing different variables relating to the chromosomes from length in millimeters to centromere position in million base pair units. 
+```{r}
+glimpse(chromosome)
+```
+
+### Getting into the Data `r fa("dna")`
+A few things stood out to me from this data set, the first being pseudo genes and lncRNAs.Pseudo genes have been found to be able to encode long non-coding RNAs so I was interested in the relationship between pseudo genes and lncRNAs in each chromosome. Another thing I was interested in was the relationship between lncRNAs and protein coding genes since lncRNAs can regulate gene expression at the transcriptional and post-transcriptional level so I hypothesize a positive correlation between protein coding genes and lncRNAs per chromosome. 
+
+```{r %>%, eval = TRUE, echo = TRUE, output.lines=11}
+chromosome %>% 
+  select(id:centromereposition_mbp) 
+#Pseudogenes can encode long non-coding RNAs (lncRNAs) so maybe I want to look into pseudogenes and totallongncrna to see if they correlate in these chromosomes and maybe if those chromosomes have increased or decreased variations because of it?
+#A non-coding RNA (ncRNA) is a functional RNA molecule that is transcribed from DNA but not translated into proteins. ... In general, ncRNAs function to regulate gene expression at the transcriptional and post-transcriptional level. -->  could also be interesting to look into total nc rna and protein coding genes
+```
+
+
+#### Let's look at Total long ncRNA vs. Protein Coding Genes per Chromosome `r fa("flask")`
+Here we see protein coding genes on the y-axis and total long ncRNA on the x-axis plotted for each chromosome. With a regression line, RR-squared value (0.81), and p-value (1.5e-06).The p-value of 1.5e-06 indicates that this correlation between lncRNAs and protein coding genes is not due from chance. 
+```{r}
+ggscatter(chromosome, x = "totallongnc_rna", y = "protein_codinggenes", add = "reg.line",
+  color = "darkblue", shape = "circle", size = 3L, 
+  conf.int = FALSE,
+  cor.coef = TRUE,
+  cor.coeff.args = list(method = "pearson", label.x = 3, label.sep = "\n"))  + 
+  geom_point(color = "darkorchid") +
+  geom_text(aes(label=id),hjust=-0.15, vjust=0) +
+# stat_cor(label.x = 3, label.y = 34) 
+ # stat_regline_equation(label.x = 3, label.y = 32) +
+    labs(
+    x = "Total Long ncRNA",
+    y = "Protein Coding Genes",
+    caption = "Data from @Tidybiology ",
+  ) +
+  theme_cowplot()
+```
+
+This made me curious to see if the outliers in the model (chromosome1, X, 19) could be explained by doing a similar comparison but with calculated values of the percent protein coding genes and total lncRNAs per basepairs of the chromosomes. In order to do that I used the mutate() function to add on two new columns with those values. 
+```{r}
+chromosome_plus <- chromosome %>%
+  mutate(protein_codinggenes/basepairs) %>%
+  mutate(totallongnc_rna/basepairs)
+glimpse(chromosome_plus)
+```
+
+Here we see a plot for the normalized protein coding genes and lncRNAs per basepair of chromosome. 
+```{r chromosome_plus, warning = FALSE}
+ggplot(chromosome_plus) +
+  aes(x = `totallongnc_rna/basepairs`, y = `protein_codinggenes/basepairs`) +
+  geom_point(shape = "circle", size = 2.8, colour = "#987CED") +
+  geom_smooth(method = "lm",se=FALSE, col='darkorange3', size=1) +
+  geom_text(aes(label=id),hjust=-0.15, vjust=0) +
+  stat_cor() +
+  labs(
+    x = "lncRNA per Basepair",
+    y = "Protein Coding Genes per Basepair",
+    caption = "Data from @Tidybiology ")+
+  theme_cowplot() +
+   ylim(0, 1.2e-05)
+```
+
+This did not seem to reveal a stronger correlation between protein coding genes and lncRNAs. I was then interested to see how pseudo genes potentially fit into this picture as pseudogenes have been found to encode lncRNAs. 
+```{r}
+ggplot(chromosome) +
+  aes(x = totallongnc_rna,y = pseudo_genes,colour = protein_codinggenes) +
+  geom_point(shape = "circle", size = 3) +
+  geom_smooth(span = 0.75, method = "lm",se=FALSE, col='red', size=1) +
+  scale_color_distiller(palette = "OrRd", direction = 1) +
+  geom_text(aes(label=id),hjust=-0.15, vjust=0) +
+  stat_cor() +
+  labs(
+    x = "Total lncRNA",
+    y = "Pseudo Genes",
+    caption = "Data from @Tidybiology ",
+    colour = "Protein Coding Genes"
+  ) +
+  theme_cowplot()
+```
+
+
+The plot above revealed that there is a strong correlation between pseudo genes  and total lncRNA which according to the p-value of 0.00044 cannot be due to chance. 
+```{r}
+ggplot(chromosome) +
+  aes(x = totallongnc_rna,y = protein_codinggenes,colour = pseudo_genes) +
+  geom_point(shape = "circle", size = 3) +
+  geom_smooth(span = 0.75, method = "lm",se=FALSE, col='red', size=1) +
+  scale_color_distiller(palette = "OrRd", direction = 1) +
+  geom_text(aes(label=id),hjust=-0.15, vjust=0) +
+  stat_cor() +
+  labs(
+    x = "Total lncRNA",
+    y = "Protein Coding Genes",
+    caption = "Data from @Tidybiology ",
+    colour = "Pseudo Genes"
+  ) +
+  theme_cowplot()
+```
+
+
+Lastly, as an interest to utilize ggplot2 further, I created a correlogram of some of the variables in the chromosomes table including: protein coding genes, total lncRNA, and pseudo genes along with a few others. 
+```{r correlation matrix plot, warning = FALSE}
+# Correlation matrix
+data("chromosome")
+cor_chromosome <- round(cor(chromosome[c("protein_codinggenes", "totallongnc_rna", "pseudo_genes", "basepairs", "length_mm", "variations", "mi_rna", "totalsmallnc_rna")], use="pairwise.complete.obs"), 1)
+
+
+# Plot 
+ggcorrplot(cor_chromosome, hc.order = TRUE, 
+           type = "lower", 
+           lab = TRUE, 
+           lab_size = 3, 
+           method="circle", 
+           colors = c("tomato2", "white", "springgreen3"), 
+           title="Correlogram of Chromosome", 
+           ggtheme=theme_cowplot)
+```
+
+
+
+### Conclusions
+There seems to be a stronger correlation between protein coding genes and lncRNAs for all chromosomes than there is between pseudo genes and lncRNAs as seen by the R-squared values. 
+
+### Prioritized Follow-up Studies
+I'd be interested in investigating chromosomes who were on either end of the spectrum in terms of correlation between lncRNAs and protein coding genes. Specifically, to do a binding assay with the lncRNAs and protein coding gene sequences of the chromosome to see if in some chromosomes there are more transcriptional modifications by the lncRNAs or post-transcriptional modifications. Summary: To investigate lncRNA binding of the protein coding sequence during transcription and lncRNA in post-transcription states. 
+
+### Acknowledgements 
+I'd like to thank the tidybiology team: Matthew Hirschey PhD, Akshay Bareja Phd, Junqi Lu, Devang Thakkar for all of their help and resources they have given me over the past two weeks. In addition, I'd like to thank all of my class mates for answering my questions throughout class. 
+
+

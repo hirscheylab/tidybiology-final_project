@@ -1,0 +1,46 @@
+---
+title: "Farino Final Project"
+output: html_document
+---
+## __Setup__
+#### Load Seurat & tidyverse
+#### Adjust memory limit to import large datasets
+```{r}
+library(Seurat)
+library(tidyverse)
+setwd("E:/R-data/Arvind")
+memory.limit(size=20000)
+Tsukui_Bleo <- readRDS("Tsukui_Bleo.rds")
+```
+
+## __Analyze__
+#### Find Cluster that espresses GOI
+```{r}
+FeaturePlot(Tsukui_Bleo, "Acta2", cols = c("lightgreen", "darkblue"))
+```
+
+#### View clusters with labels
+```{r warning=FALSE}
+DimPlot(Tsukui_Bleo, label=TRUE, label.size=8) + NoLegend()
+```
+
+#### Import GPCR list from IUPHAR
+```{r}
+GPCRTargets <- read.csv("E:/R-data/Arvind/GPCRTargets.csv")
+```
+
+##### Pull out only the columnn that lists the GPCRs in the mouse gene format
+```{r}
+GPCRs <- GPCRTargets %>% select(MGI.symbol)
+glimpse(GPCRs)%>% head(3)
+```
+
+#### Make a heatmap that compares GPCR expression between the clusters
+```{r warning=FALSE}
+DoHeatmap(Tsukui_Bleo, features = GPCRs [1:415,1], size=2) + NoLegend()
+```
+
+#### Featureplot of P2ry14 demonstrates the receptor is selectively expressed in fibroblasts
+```{r}
+FeaturePlot(Tsukui_Bleo, "P2ry14", cols = c("lightgreen", "darkblue"))
+```

@@ -1,0 +1,127 @@
+---
+title: "FinalProject_DelicS"
+output:
+  pdf_document: default
+  html_document: default
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(tidybiology)
+library(dplyr)
+library(ggplot2)
+library(stringr)
+library(ggrepel)
+library(plotrix)
+```
+
+## Background
+Two sets of data were obtained from two different papers. The first set of data is from a paper titled "Cell of the Adult Human Heart" [Nature 2020](https://www.nature.com/articles/s41586-020-2797-4). This data set is composed of mRNA expression data for 6 different regions in the heart: left atrium, right atrium, left ventricle, right ventricle, apex, and septum. The second set of data is from a paper "Transcriptomic Analyses of Murine Ventricular Cardiomyocytes" [Scientific Data 2018](https://www.nature.com/articles/sdata2018170#Fig1). This data set provides a list of genes that encode ion channels, along with details surrounding their channel type. Using this dataset, my goal is to identify the most differentially expressed ion channel genes between human atrial and ventricular cardiac regions. 
+
+## Importing Data
+CSV files were imported
+```{r}
+setwd("/Users/samed/Desktop/CMB 710F/Final Project")
+CM_Regions_RNASeq <- read.csv(file = 'CM_Regions_RNASeq.csv')
+IonChannels <- read.csv(file = 'IonChannels.csv')
+```
+
+## Cleaning 
+Converting the string of 'Gene Name' into all uppercase letters in order to match the list of the genes in the RNASeq data set. This is ultimately used to create a new dataset 'Ion_Channels_RNASeq' that contains the RNASeq data for only ion channel genes.
+```{r}
+ion_gated <- IonChannels %>%
+  mutate(gene = str_to_upper(`Gene.Name`)) %>% 
+  pull(gene)
+
+ion_gated <- str_trim(ion_gated, side = "both")
+
+Ion_Channels_RNASeq <- CM_Regions_RNASeq %>% 
+  filter(gene %in% ion_gated)
+```
+
+Next, now that both dataframes have a variable with identical observations, both dataframes were merged in order to preserve as much information as possible. In order to reduce any repetitive variables, 'Gene Name' was removed.
+
+```{r}
+IonChannels <- mutate(IonChannels, ion_gated)
+Ion_Channels_RNASeq <- merge(x = Ion_Channels_RNASeq, y = IonChannels, by.x = "gene", by.y = "ion_gated", all=TRUE)
+Ion_Channels_RNASeq$`Gene Name`<- NULL
+```
+
+## Analysis
+Average ion channel gene expression was calculated for two cardiac regions, atrium or ventricle. These averages were appended to the ion channel RNASeq dataframe.
+
+```{r}
+all_atrial_means <- rowMeans(subset(Ion_Channels_RNASeq, select = c('aCM1_LA','aCM2_LA','aCM3_LA','aCM4_LA','aCM5_LA','aCM1_RA','aCM2_RA','aCM3_RA','aCM4_RA','aCM5_RA')), na.rm = TRUE)
+
+Ion_Channels_RNASeq <- mutate(Ion_Channels_RNASeq,
+                              all_atrial_means)
+
+all_ventricular_means <- rowMeans(subset(Ion_Channels_RNASeq, select = c('vCM1_AX','vCM2_AX','vCM3_AX','vCM4_AX','vCM5_AX','vCM1_LV','vCM2_LV','vCM3_LV','vCM4_LV','vCM5_LV','vCM1_RV','vCM2_RV','vCM3_RV','vCM4_RV','vCM5_RV','vCM1_SP','vCM2_SP','vCM3_SP','vCM4_SP','vCM5_SP')), na.rm = TRUE)
+
+Ion_Channels_RNASeq <- mutate(Ion_Channels_RNASeq,
+                              all_ventricular_means)
+
+```
+
+The magnitude of the difference between genes expressed in atrial tissue versus ventricular tissue was calculated, and appended to the original table. 
+
+```{r}
+differences <- abs(Ion_Channels_RNASeq$all_atrial_means - Ion_Channels_RNASeq$all_ventricular_means)
+Ion_Channels_RNASeq <- mutate(Ion_Channels_RNASeq, differences)
+```
+
+Next, in order to simplify the data, only the top 20 most differentially expressed genes were pulled and stored into a new dataframe. 
+
+```{r}
+tophits <- Ion_Channels_RNASeq %>%
+  select(c(gene, all_atrial_means, all_ventricular_means, differences))
+
+difference_top20hits <- Ion_Channels_RNASeq %>%
+  select(c(gene, all_atrial_means, all_ventricular_means, differences)) %>%
+  arrange(desc(differences))%>%
+  slice(1:20)
+difference_top20hits
+```
+
+In order to plot a grouped bar plot, the data must be presented in a particular way. In this case, I wanted 3 categories: gene, expression level, tissue type. The code below copies and appends the top20hit dataframe onto itself, mutates an additional list of tissue type onto that new dataframe, and then reorders values depending on tissue type.
+
+```{r}
+df7 <- bind_rows(difference_top20hits, difference_top20hits)
+
+list <- rep(c("atrium","ventricle"), each = 20)
+
+df7 <- mutate(df7, list)
+
+df7 <- transform(df7, all_ventricular_means = ifelse(list == 'ventricle', all_atrial_means, all_ventricular_means), all_atrial_means = ifelse(list == 'ventricle', all_ventricular_means, all_atrial_means))
+```
+
+Renaming columns to improve readability. 
+```{r}
+df7 <- df7 %>%
+  rename(expression_level = all_atrial_means) %>%
+  rename(tissue=list)
+
+df7$all_ventricular_means <- NULL
+df7$differences <- NULL
+
+df7
+```
+
+Creating a grouped bar plot in order to compare differences in expression between atrial and ventricular tissues.
+
+```{r}
+ggplot(df7, aes(x=gene, y=expression_level, fill=tissue))+
+  geom_bar(stat = "identity", color = "black", position=position_dodge())+
+  scale_fill_manual(values = c("#999999", "goldenrod"))+
+  theme(axis.title.x = element_text(face="bold", colour="black", size=15),
+           axis.text.x  = element_text(angle=90, vjust=0.5, size=12))+
+  labs(x = "Ion Channel Gene", y = "mRNA Expression Level", title = "Top 20 Differentially Expressed Ion Channel Genes")
+```
+
+## Conclusions
+
+The difference in expression of genes between atrial and ventricular tissue seem slight for most of the top hits. One interesting finding from this analysis was the expression pattern of KCNJ3, which is approximately 60x greater in atrial tissue than ventricular tissue. Recently, a publication listed a mutation in KCNJ3 as a hereditary cause for patients with bradyarrhythmias and atrial fibrillation. (Circulation 2019)[https://www.ahajournals.org/doi/10.1161/CIRCULATIONAHA.118.036761]
+
+## Acknowledgements
+
+Thank you to the Tidybiology course instructors and students. 

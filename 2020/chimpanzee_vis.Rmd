@@ -1,0 +1,132 @@
+---
+title: "Chimpanzee_vis"
+author: "Scott Kum"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Rationale
+
+Cancer immunotherapy is a breakthrough strategy for cancer treatment. However, its utility has been limited to few highly immunogenic cancer types. Therefore, many recent research efforts have been focused on improving immune targeting of the so-called "cold" tumors. One such effort involve vaccinating patients with neoantigens expressed by cancer cells, but so far, only the exome, which maximally cover 2% of the human genome, has been explored for these vaccines. I aim to harness transposons (te) which cover up to 50% of the human genome, to develop personalized cancer vaccine to improve cancer immunotherapy efficiency and tumor specificity (Waldman, Fritz & Lenardo, 2020).
+
+## Load Libraries
+`tidyverse`, `viridis`, and `plotly` are loaded.
+
+```{r, include = FALSE}
+library(tidyverse)
+library(viridis)
+library(plotly)
+```
+
+## Import Data
+#### Three tsv files are imported:
+
+```{r, echo = TRUE}
+ht29_gene <- read.table("HT29_HERVK_GENE.tsv", sep = "\t", header = TRUE)
+ht29_te <- read.table("HT29_HERVK_TE.tsv", sep = "\t", header = TRUE)
+gene_conv <- read.table("gene_conv.tsv", sep = "\t", header = TRUE)
+```
+&nbsp;  
+**HT29_HERVK_GENE.tsv**  
+This is a list of read-gene pairs from a Nanopore cDNA sequencing data of HT29 cell line mapped to a repeat-masked human genome.
+```{r, echo = TRUE}
+head(ht29_gene)
+```
+&nbsp;  
+**HT29_HERVK_TE.tsv**  
+This is a list of read-te pairs from a Nanopore cDNA sequencing data of HT29 cell line mapped to a human te consensus sequences.
+```{r, echo = TRUE}
+head(ht29_te)
+```
+&nbsp;  
+**gene_conv.tsv**  
+This is a list of RefSeq accesion-gene symbol pairs.
+```{r, echo = TRUE}
+head(gene_conv)
+```
+
+## Convert Gene Name
+RefSeq accessions found in `ht29_gene` is not quite human-readable. The code below will replace these accessions with gene symbols based on `gene_conv`.
+
+```{r, echo = TRUE}
+ht29_gene <- ht29_gene %>%
+  inner_join(gene_conv, by = "refseq") %>%
+  select(read, gene)
+head(ht29_gene)
+```
+
+## Get Chimeric Gene-TE Pairs
+`inner_join` is again used to join the common reads between `ht29_gene` and `ht29_te`, and the columns "gene" and "te" are selected.
+
+```{r, echo = TRUE}
+chimera_pair <- inner_join(ht29_gene, ht29_te, by = "read") %>%
+  select(gene, te)
+head(chimera_pair)
+```
+
+## Count Chimeric Gene-TE Pairs
+To count the occurence of each gene-te pair, `chimera_pair` is grouped and counted, and then filtered to exclude outliers. `complete` is used to fill in missing combinations of gene and te.
+
+```{r, echo = TRUE}
+chimera_count <- chimera_pair %>%
+  group_by_all() %>%
+  count() %>%
+  ungroup() %>%
+  filter(n > 6) %>%
+  filter(n < 50) %>%
+  complete(gene, te)
+head(chimera_count)
+```
+
+## Visualize Data as Heatmap
+
+A heatmap was chosen to visualize this data because it allows discrete values in both x- and y-axis, and further allows a third dimension of quantity (column "n" in `chimera_count`) to be represented with color. `ggplot2` is used to generate a heatmap with genes along the x-axis and te along the y-axis. Variety of theme options are used to make the plot look better.
+
+```{r, echo=TRUE, fig.height=10, fig.width=25}
+ggplot(data = chimera_count, mapping = aes(x = gene, y = te, fill = n)) +
+  geom_tile(colour = "white", size = 1.5, stat = "identity") +
+  coord_equal() +
+  xlab("") +
+  ylab("") +
+  ggtitle(label = "HT29-HERVK Chimeric Pairs \n") +
+  theme_light() +
+  theme(axis.text.x = element_text(size = 30, angle = 90, vjust = 0.5, hjust=1),
+        axis.text.y = element_text(size = 30),
+        legend.key.height = unit(0.5, "inch"),
+        legend.key.width = unit(1, "inch"),
+        legend.text = element_text(size = 30),
+        legend.position = "right",
+        legend.title=element_blank(),
+        plot.title = element_text(size = 40)) +
+  scale_fill_viridis(option = "A", na.value = "gray")
+```
+
+`ggplotly` is used in conjunction with `ggplot2` for an interactive heatmap experience. Few theme options used above are modified or omitted here due to incompatibility with the `ggplotly` function.
+
+```{r, echo=FALSE, fig.height=5, fig.width=10}
+chimera_plotly <- ggplot(data = chimera_count, mapping = aes(x = gene, y = te, fill = n)) +
+  geom_tile(colour = "white", size = 1.5, stat = "identity") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank()) +
+  labs(fill = "") +
+  scale_fill_viridis(option = "A")
+ggplotly(chimera_plotly)
+```
+
+## Interpretation
+
+From the above heatmap, ALU element seems to form a chimera with a wide variety of genes. Since ALU element is present in the 5' and 3' UTR of many genes, some of those chimeric reads may not be a unique feature of cancer. However, ALU element is still capable of mobilization and so a thorough look at the position of these ALU elements within genes is warranted.
+
+Although it may look as if the diversity of gene-te chimera is somewhat limited, the starting data is a 50-fold random subset of the dataset from a single Nanopore cDNA sequencing run, and therefore application of this pipeline to the full dataset will likely yield more pairs than seen here. This will also likely lead to a clearer picture of which chimera pair is truly enriched in the transcriptome of HT29 cells, an important factor in selecting a candidate for cancer vaccine.
+
+## Future Direction
+
+One major drawback of the analysis pipeline described above is that it assumes a 1-to-1 relationship between gene and te within a chimeric transcript. However, chimera involving more than two of these elements have been observed, albeit rarely. It is difficult to visually represent such chimera though, and `ggplot` may not be suitable for these edge cases.
+
+One important aspect of this research is to identify unique chimera signatures between cancer cell lines and ultimately between patients to allow personalized medicine. Therefore, I will additionally sequence the transcriptome of other human cancer cell lines and further develop this pipeline to compare data between samples.

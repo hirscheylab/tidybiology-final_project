@@ -1,0 +1,113 @@
+---
+title: "710C Final Project - 2017 World Happiness Report"
+author: "Kate Bland"
+date: "9/30/2021"
+output: html_document
+---
+## Background
+### This data was derived from the 2017 World Happiness [Report](https://worldhappiness.report/ed/2017/). Happiness was defined as how people experience and evaluate their lives as a whole. Happiness index was reported as a ladder - answers were averaged to a single number.
+  
+  
+  
+## Load Libraries
+
+```{r message=FALSE}
+library('dplyr')
+library('ggplot2')
+library('tidybiology')
+
+#install.packages("tidyverse")
+#install.packages("readxl")
+
+
+#install.packages("here")
+library("tidyverse")
+library(readxl)
+library(here)
+happy <- read_excel("happiness.xlsx", sheet=1)
+
+
+```
+  
+  
+  
+## Filter Data
+```{r}
+top_happy <-
+happy %>% 
+  filter(happiness_score > 7.25)
+head(top_happy)
+```
+  
+#### In 2017, Norway had the highest happiness score.
+  
+    
+    
+## Exploratory Analysis 
+  
+### First, I wanted to explore the relationship between the happiness score for each country and GDP per capita.
+```{r echo=FALSE, message=FALSE}
+
+ggplot(happy) +
+  aes(x = happiness_score, y = GDP) +
+  geom_point(shape = "circle", size = 1.5, colour = "#112446") +
+  geom_smooth(aes(happiness_score, GDP), method="lm") +
+  labs(
+    x = "Happiness Score",
+    y = "GDP per capita",
+    title = "Happiness vs. GDP"
+  ) +
+  theme_minimal()
+```
+  
+#### There is a positive correlation between happiness score and GDP per capita indicating that as GDP per capita increases, happiness score increases.
+
+
+
+    
+### Next, I wanted to explore the relationshp between the happiness score for each country and life expectancy.
+```{r echo=FALSE, message=FALSE}
+ggplot(happy) +
+  aes(x = happiness_score, y = life_exp)  +
+  geom_point(shape = "circle", size = 1.5, colour = "#112446") +
+    geom_smooth(aes(happiness_score, life_exp), method="lm") +
+  labs(
+    x = "Happiness Score",
+    y = "Life Expectancy",
+    title = "Happiness vs. Life Expectancy"
+  ) +
+  theme_minimal()
+```
+  
+#### There is a positive correlation between happiness score and life expectancy indicating that as life expectancy increases, happiness score increases.
+
+  
+    
+### Finally, I wanted to determine the relationship between life expectancy against GDP per capita and accounted for happiness score.
+```{r echo = FALSE, message=FALSE}
+ggplot(happy) +
+  aes(x = GDP, y = life_exp, colour = happiness_score) +
+  geom_point(shape = "circle", size = 1.5) +
+  geom_smooth(aes(GDP, life_exp), method="lm") +
+  scale_color_gradient() +
+  labs(
+    x = "GDP per capita",
+    y = "Life Expectancy",
+    title = "Life Expectancy vs GDP",
+    color = "Happiness Score"
+  ) +
+  theme_minimal()
+```
+  
+#### There is a positive correlation between life expectancy and GDP per capita indicating that as GDP per capita increases, life expectancy increases. Additionally, higher happiness scores are observed as life expectancy and GDP per capita increase.
+
+
+  
+    
+# Follow-Up Studies
+#### Future studies could focus on the gap between low GDP per capita and high life expectency. Additionally, more data involving mental and physical health could be explored, as this is a key indicator of overall happiness. 
+  
+  
+  
+## Acknowledgements
+#### I would like to acknowledge Dr. Hirschey, Akshay, Junqi, and Devang for their help and expertise. I would also like to acknowledge the World Happiness Report for making their data available online.

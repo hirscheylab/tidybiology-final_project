@@ -1,0 +1,178 @@
+---
+title: "Tidybiology Final Project"
+output: html_document
+---
+
+Evon DeBose-Scarlett  
+16 November 2020    
+
+### Load Libraries  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+library(tidyverse)
+library(readxl)
+library(ggplot2)
+library(ggrepel)
+```
+  
+### Import Data  
+I loaded the 'chromosome' data, as well as a dataset of detected retroduplication insertions I found from this paper:  
+
+Zhang, Y., Li, S., Abyzov, A., & Gerstein, M. B. (2017). Landscape and variation of novel retroduplications in 26 human populations. PLoS computational biology, 13(6), e1005567. https://doi.org/10.1371/journal.pcbi.1005567.  
+
+In it, they identify the parent genes and the insertion sites of retroduplication events of 152 parent genes, a subset of the 15,642 total retroduplication events they discovered from 2,533 individuals for 503 unique parent genes.  
+
+I saw that this dataframe has 11 variables and 286 observations (some parent genes have multiple retroduplications). 
+
+
+```{r, include=FALSE}
+## this is the loading data chunk. It loads the data necesary to execute this project 
+getwd()
+setwd("/Users/emd2s/Desktop/DUKE FALL 2020/Classes/tidybiology")
+S3_Text_Detected_retroduplication_insertion_sites <- read_excel("data/S3 Text Detected retroduplication insertion sites.xlsx")
+View(S3_Text_Detected_retroduplication_insertion_sites)
+save(S3_Text_Detected_retroduplication_insertion_sites, file = "duplications2.rda")
+load('duplications2.rda')
+duplications2<-S3_Text_Detected_retroduplication_insertion_sites
+load('Tidybiology_Project_ES/chromosome.rda')
+```
+ 
+
+```{r}
+glimpse(duplications2)
+```
+
+
+```{r}
+## here we will take the original dataframe I got from the paper and take out all the instances of 'chr' in the two "chr" columns to make things easier for ordering purposes and such
+
+duplications2<-S3_Text_Detected_retroduplication_insertion_sites 
+duplications4<-str_remove_all(duplications2$chr, "chr")
+duplications5<-str_remove_all(duplications2$geneChr, "chr")
+duplications6 <- add_column(duplications2,duplications4)
+duplications7 <- add_column(duplications6,duplications5)
+duplications8 <- subset(duplications7, select = -c(chr,geneChr))
+duplications9<- rename(duplications8, insertchr = duplications4)
+duplications10<- rename(duplications9, parentchr = duplications5)
+
+```
+
+
+### EDA  
+I was curious if there was a pattern to the number of parent gene retroduplications from each chromosome in Zhang et al.'s dataset. Interestingly, some chromosomes have very high numbers of originating retroduplications, and some have very few. Some were not found to have any (21 and Y). 
+
+
+```{r}
+## this is where the data manipulation begins. First we will get some of the "duplications" data into a form we can use
+duplications_count<-count(duplications10, parentchr)
+id_duplications_count<-duplications_count%>%
+  rename(id = parentchr)
+```
+
+
+```{r}
+## now we will join the "duplications" data with "chromosome" so that we only have to work with one dataframe at a time
+allchromosomes<-left_join(chromosome,id_duplications_count, by = "id")
+allchromosomes_renamed<-allchromosomes%>%
+  rename(duplicationsfrom = n)
+## we will also make a new "id2" columns to group on, so that our graphs will be arranged in a sensible manner 
+allchromosomes_renamed$id2<-factor(allchromosomes_renamed$id, levels = c("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22","X","Y") )
+```
+
+
+```{r warning=FALSE}
+## now we will plot how many duplications there are from each chromosome 
+ggplot(data = allchromosomes_renamed)+
+  geom_col(mapping = aes(x=id2,y=duplicationsfrom))+
+  labs(x="Chromosome ID", y="Originating Retroduplications", title = "Number of Originating Retroduplications From Each Chromosome")+ theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+Retroduplication occurs with transcription events (a gene is transcribed into RNA and then reverse transcribed back into DNA and inserted somewhere else in the genome) (Zhang et al., 2017).  
+
+This made me curious about the level of transcription on each chromosome. I took a look at the 'chromosome' dataset for information about possible RNAs that could be transcribed from each chromosome.  
+
+
+```{r}
+glimpse(chromosome)
+```
+
+
+```{r}
+## now we are interested in how many transcription possible events there are per chromosome as transcription is a mechanism by which the duplication events occur. We will make a new dataframe called "final_chromosomes" that will include a column for all possible transcription events (protein coding genes, pseudo genes, and rnas)
+final_chromosomes<-allchromosomes_renamed%>%
+  mutate(total_transcript = protein_codinggenes + pseudo_genes + totallongnc_rna + totalsmallnc_rna + mi_rna + r_rna + sn_rna + sno_rna + miscnc_rna)
+```
+
+
+I looked at the relationship between chromosome length and total possible transcription events.  
+Smaller chromosomes tend to have fewer possible transcription events. 
+
+
+```{r message=FALSE}
+## now we will plot how many transcription events are possible per chromosome
+ggplot(data = final_chromosomes)+
+  geom_point(mapping = aes(x=length_mm,y=total_transcript))+
+  geom_smooth(mapping = aes(x=length_mm,y=total_transcript))+
+  geom_label_repel(mapping = aes(x = length_mm, y = total_transcript, label=id2))+
+  labs(x="Chromosome Length", y="Total Possible Transcription Events", title = "Number of Possible Transcription Events From Each Chromosome")+ theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+Now, I wanted to know if the number of retroduplication events found originating from each chromosome was related to the number of possible transcription events for each chromosome. I plotted this as a simple scatter plot first, then as a lollipop plot to make the patterns more clear. 
+
+
+```{r warning=FALSE}
+## comparing this graph to our original, it looks like there are major discrepancies. For our final graph, we will plot the number of duplication events from each chromosome as a function of possible transcription events, and label the points for each chromosome. 
+
+
+ggplot(data = final_chromosomes)+
+  geom_point(mapping = aes(x = total_transcript, y = duplicationsfrom))+
+  geom_label_repel(mapping = aes(x = total_transcript, y = duplicationsfrom, label=id2))+
+  labs(x="Possilbe Transcription Events", y="Originating Duplications", title = "Originating Retroduplications versus Transcription Events")+ theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+I wondered if normalizing the retroduplications to the number of possible transcription events on each chromosome would clarify a pattern. 
+
+### Final Graph
+```{r message=FALSE,warning=FALSE}
+next_chromosomes<-mutate(final_chromosomes, dup_per_trans = duplicationsfrom/total_transcript)
+ggplot(data=next_chromosomes)+
+  geom_point(data = next_chromosomes, aes(x=id2, y=dup_per_trans), size = 5, color="royalblue4", fill = alpha("royalblue1"), shape=21, stroke=1.2)+
+  geom_segment(aes(x=id2,xend=id2,y=0, yend=dup_per_trans))+
+  geom_label(data=subset(next_chromosomes, dup_per_trans>0.005),aes(x = id2, y = dup_per_trans, label=id2), nudge_y = 0.0015)+
+  coord_flip()+
+  theme_light()+
+  labs(x="Chromosome ID", y="Originating Duplications/Possible Transcription Events", title = "Originating Retroduplications per Possible Transcription Events")+ theme(plot.title = element_text(hjust = 0.5))
+
+ggsave("EMDS_Tidybiology_Final_Graph.png")
+```
+  
+### Conclusions  
+Based on this graph, it appears that chromosome 20 has far more retroduplication events per possible transcription events originating from it than any other chromosome. This suggests that one or more transcripts from this chromosome are preferentially selected for retroduplication events.  
+
+### Prioritized Follow-Up  
+Looking back at the original dataset, There are multiple retroduplications of the gene _FRG1B_ on chromosome 20.
+
+```{r}
+FRG1Bdata<- duplications10%>%
+  filter(geneName == "FRG1B")
+glimpse(FRG1Bdata)
+```
+
+I would look at the features of this gene compared to less-duplicated genes to see what features of _FRG1B_ make it more prone to retroduplication. 
+
+### Acknowledgments  
+I would like to acknowledge the instructors, the creators of the tidyverse package, the creators of RDocumentation, the creators and contributors to Stack Overflow, and Zhang et al. for the use of their publicly available data.   
+
+
+### Reference
+Zhang, Y., Li, S., Abyzov, A., & Gerstein, M. B. (2017). Landscape and variation of novel retroduplications in 26 human populations. PLoS computational biology, 13(6), e1005567. https://doi.org/10.1371/journal.pcbi.1005567
+
+  
+### Session Information
+```{r warning=FALSE}
+utils:::print.sessionInfo(sessionInfo()[-8]) 
+```

@@ -1,0 +1,88 @@
+---
+title: "Tidybiology final: Protein size by compartment"
+author: "Jeff Reitano"
+date: "November 16, 2020"
+output: html_document
+---
+
+### Load libraries and create a new data frame  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(tidybiology)
+library(viridis)
+#This one is for adding color to my plots
+```
+
+```{r, include=FALSE}
+data(proteins)
+data(subcell)
+#To combine these two data frames I will use inner join
+subcell_1 <- inner_join(proteins, subcell, by = "gene_name")
+#I prefer units of "kDa" over Daltons. Just personal preference.
+subcell_2<- subcell_1 %>% 
+  mutate(mass_kDa = mass/1000)
+#I now want to order my groups, roughly by compartment size. I think that larger compartments may be able to house larger proteins. I will do this with the fct_relevel() command.
+subcell_full <- subcell_2 %>% 
+  mutate(location = fct_relevel(location,
+                                "Other", "Extracellular", "Cytoplasm", "Membrane", "Nucleus", "ER", "Mitochondria", "Nucleolus", "Golgi", "Lysosome", "Centrosome", "Peroxisome", "Ribosome", "Vesicle"))
+```
+I used 'inner_join' to combine two data frames from tidybiology: the **proteins** and **subcell** data frames. This allows me to compare subcellular localization to other protein properties. Here is our new dataframe:  
+  
+```{r echo=FALSE}
+glimpse(subcell_full)
+```
+### Data analysis  
+  
+Is there a difference in protein size between different cellular compartments? 
+
+```{r echo=FALSE}
+ggplot(subcell_full, aes(x = location, y = mass_kDa, fill=location)) + 
+  geom_boxplot() +
+  coord_flip() +
+#This flips the axes, making the chart horizontal. This is nice aesthetically, and allows us to read all of the group labels.
+  labs(x = "Intracellular location", y = "Protein mass (kDa)", title = "Protein mass by location")+
+  theme_classic()+
+  theme(panel.grid=element_blank(),
+          legend.position="none")+
+#I did this to get rid of the legend, since we already have labels along the axis
+  scale_color_viridis()
+#Viridis is a package that creates a color palette for us. I loaded this earlier in the r setup page.
+```
+  
+The upper quartile of this data supports my "size limit" hypothesis. But what about the rest of the data?  
+  
+```{r echo=FALSE}
+ggplot(subcell_full, aes(x = location, y = mass_kDa, fill=location)) + 
+  geom_boxplot(outlier.color="white",
+               outlier.fill="white") +
+#I had trouble getting rid of outliers, since the examples online were very complicated and, at times, dated. Instead, this allows me to just hide my outliers, rather than getting rid of them.
+  coord_flip() +
+  labs(x = "Intracellular location", y = "Protein mass (kDa)", title = "Protein mass by location")+
+  theme_classic()+
+  theme(panel.grid=element_blank(),
+          legend.position="none")+
+  scale_color_viridis()+
+  ylim(0,200)
+#Since I didn't truly get rid of my outliers, I need to adjust the "Protein mass" axis to better show the data.
+```
+  
+There does not seem to be much of a difference in the bottom three quartiles between groups.
+
+### Conclusions  
+
+Smaller, membrane-bound organelles appear to have a maximum protein size that is **smaller** than larger cellular spaces. There does not seem to be a difference in median or lower limit.
+
+### Important follow-up studies  
+
+Caveats: This study  
+  
+1) Ignores **post-translational** modifications (via UniProt)  
+  
+2) Assumes all proteins are **monomers** 
+  
+This analysis should be repeated with a **protein complex** dataset, to see if this pattern still holds. 
+
+### Acknowledgements  
+  
+Thank you to Professor Hirschey, Akshay, and the rest of tidybiology!

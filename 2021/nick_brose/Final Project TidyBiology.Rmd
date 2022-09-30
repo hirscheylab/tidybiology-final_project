@@ -1,0 +1,250 @@
+---
+title: "Final_Project_TidyBiology"
+output: html_document
+out.width: "150%"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library('reshape')
+
+brainRNAseq <- read.csv('data/Brain_RNAseq.csv')
+```
+### `Looking at the data set`
+
+For my project, I am using the Brain RNAseq data set produced by Zhang et al and available at brainrnaseq.org
+
+A glimpse of the data is visible below.  The dataset has 15041 rows and 169 columns, making it rather unweildly. So the first step is to cut it down to size
+
+```{r looking at the data, echo=FALSE} 
+
+
+glimpse(brainRNAseq)
+
+```
+
+### `Cutting the data down to size`
+
+The next step is to sort out the data we are interested in looking at into their own data sets: Human fetal and mature astrocyte single cell sequencing data
+
+```{r, echo=FALSE}
+mature_astros <- brainRNAseq %>% 
+  select(contains('Gene') | contains('Human.mature'))
+glimpse(mature_astros)
+
+fetal_astros <- brainRNAseq %>% 
+  select(contains('Gene') | contains('Human.fetal'))
+glimpse(fetal_astros)
+```
+
+
+I also want to make a combined data set for comparing fetal to mature, rather than working just within the groups.  In order to get an idea of what genes I should look at, I made a data frame of the 20 most expressed genes in childhood (8yo)
+
+
+```{r, echo=FALSE}
+combined_astros <- fetal_astros %>% 
+  inner_join(mature_astros, by = 'Gene') #I've used an inner join here because I only want the values for genes present in both data sets, the making of 2 sets and joining also serves the function of eliminating any NA rows
+glimpse(combined_astros)
+
+#Use the arrange function to sort by genes highly expressed in childhood and save the top 20 results in their own DF
+
+ordered_combined_astros <- arrange(combined_astros, desc(Human.mature.astrocytes.8yo))
+top_childhood <- slice(ordered_combined_astros, 0:19)
+
+glimpse(top_childhood)
+```
+### `Understanding the data through plots`
+
+I now wanted to plot the scores for the top transcripts in old and young individuals to identify genes that change drastically between childhood and old age
+
+Initially I began by plotting the genes in top_childhood against the 60 yo scores
+
+```{r, echo=FALSE}
+#colored plot but less tidy
+#ggplot(top_childhood) +
+ #aes(x = Human.mature.astrocytes.8yo, y = Human.mature.astrocytes.60yo, color = Gene) +
+ #geom_point(shape = "circle", size = 2.50) +
+ #theme_minimal() +
+# geom_text(
+ #   label = top_childhood$Gene,
+  #  nudge_x = 100, nudge_y =0.25, 
+   # check_overlap = F
+ #)
+
+ggplot(top_childhood) +
+ aes(x = Human.mature.astrocytes.8yo, y = Human.mature.astrocytes.60yo) +
+ geom_point(shape = "circle", 
+ size = 1L, colour = "#112446") +
+ labs(x = "8yo fold change", y = "60 year old fold change", title = "Top 20 genes in children", 
+ subtitle = "Comparison with 60yo", caption = "Data from Zhang et al") +
+ theme_minimal() +
+ geom_text(
+    label = top_childhood$Gene,
+    nudge_x = 70, nudge_y =0.25, 
+    check_overlap = T
+ )
+
+#This plot will identify genes disproportionately expressed in youth or old age (8yo vs 60yo time points)
+
+```
+
+
+
+This logic can be extended to the entire dataset, to get an idea of the shape of the data and the outliers of interest
+
+
+
+
+```{r, echo=FALSE}
+library(ggplot2)
+
+ggplot(combined_astros) +
+ aes(x = Human.mature.astrocytes.8yo, y = Human.mature.astrocytes.60yo) +
+ geom_point(shape = "circle", size = 0.5) +
+ theme_minimal() +
+ geom_text(
+    label = combined_astros$Gene,
+    nudge_x = 100, nudge_y =0.25, 
+    check_overlap = T
+ )
+```
+
+
+
+**Picking out genes of interest**
+
+Some potential candidates based on this plot appear to be Malat1 and Spacl1 for elevated. Atp1b2, Clu for reduced.  To confirm this I mutated a column of the original dataset with the proportion between old and young fold change, the further from 1 the value is the greater the change.  I then output the ten genes with greatest increases and decreases in fold change.
+
+
+
+```{r}
+combined_astros_prop <- combined_astros %>% 
+  mutate(sixty_over_eight = Human.mature.astrocytes.60yo/Human.mature.astrocytes.8yo)
+
+high_in_old <- combined_astros_prop %>% 
+  arrange(sixty_over_eight) %>% 
+  slice(0:10)
+high_in_old$Gene
+
+high_in_young <- combined_astros_prop %>% 
+  arrange(desc(sixty_over_eight)) %>% 
+  slice(0:10)
+high_in_young$Gene
+
+
+```
+
+
+
+I noticed that this table is revealing genes not shown on the above trend plot, and that the highest proportional fold changes are in much lower expression genes.  Therefore, I decided to do another plot, this time filtering for genes of lower expression, and again for  much lower expression.  In these plots, I marked in blue any genes with less than a 100% increase or 50% decrease in fold change between ages
+
+```{r}
+combined_astros_small <- combined_astros_prop %>% 
+  filter(!(Human.mature.astrocytes.60yo > 100 | Human.mature.astrocytes.8yo > 100))
+
+ggplot(combined_astros_small) +
+ aes(x = Human.mature.astrocytes.8yo, y = Human.mature.astrocytes.60yo, color = ifelse(
+   !(sixty_over_eight < 0.5 | sixty_over_eight > 2),
+  'Similar',
+   'Different'
+ )) +
+ geom_point(shape = "circle", size = 0.5) +
+ theme_minimal() +
+ geom_text(
+    label = combined_astros_small$Gene,
+    nudge_x = 5, nudge_y =0.25, 
+    check_overlap = T
+ ) + 
+  theme(legend.position = "none")
+
+combined_astros_smaller <- combined_astros_prop %>% 
+  filter(!(Human.mature.astrocytes.60yo > 12.5 | Human.mature.astrocytes.8yo > 12.5))
+
+ggplot(combined_astros_smaller) +
+ aes(x = Human.mature.astrocytes.8yo, y = Human.mature.astrocytes.60yo, color = ifelse(
+   !(sixty_over_eight < 0.5 | sixty_over_eight > 2),
+  'Similar',
+   'Different'
+ )) +
+ geom_point(shape = "circle", size = 0.5) +
+ theme_minimal() +
+ geom_text(
+    label = combined_astros_smaller$Gene,
+    nudge_x = 0.5, nudge_y =0.25, 
+    check_overlap = T
+ )+ 
+  theme(legend.position = "none")
+
+```
+
+
+
+This graphic is useful, but a bit overwhelming, so I took my lists of the top 10 increasing and decreasing genes and joined them with rbind(), transposed the table, and plotted the data as a line chart. The numbers on the x axis of the line chart each correspond to a categorical age variable from the original dataset, with the key printed below
+
+```{r, echo=FALSE}
+top_20 <- rbind(high_in_young, high_in_old)
+
+#write.csv(top_20, file = 'data/top_20')
+top_20_transpose <- read.csv('data/top_20_transpose.csv', header = TRUE)
+#Unfortunately, even with help in office hours I couldn't get the transpose command to work properly.  So I exported the file, restructured it correctly in excel, and reimported.  This is a one time operation so I've left the code in, but commented out
+```
+
+**Plotting**
+
+```{r}
+#clean up the data by removing the unneeded columns
+top_20_clean <- top_20_transpose %>% 
+  select(Age_placeholder:Mtx1)
+
+#melt the data frame to make the chart work using the reshape package
+df.melted <- melt(top_20_clean, id = 'Age_placeholder')
+         
+ggplot(df.melted) +
+ aes(Age_placeholder, y = value, color = variable) +
+ geom_line() +
+ labs(x = 'Age placeholder', y = 'Fold Change', title = "Change in genes over time", caption = "Change from fetal to mature timepoints occurs at time point 7") +
+ theme_minimal() +
+  geom_vline(xintercept = 7, color = 'red')
+```
+
+
+
+**Key**
+```{r, echo=FALSE}
+Age_key <- top_20_transpose %>% 
+  select(contains('Age'))
+Age_key
+```
+
+This shows that the histone marker Hist1h1e shows a massive decrease in expression after birth which is exciting! however the effect is so strong it is masking our other data so I will filter it out and replot
+```{r}
+ggplot(df.melted %>% filter(variable != 'Hist1h1e')) +
+ aes(Age_placeholder, y = value, color = variable) +
+ geom_line() +
+ labs(x = 'Age placeholder', y = 'Fold Change', title = "Change in genes over time", caption = "Change from fetal to mature timepoints occurs at time point 7") +
+ theme_minimal() +
+  geom_vline(xintercept = 7, color = 'red')
+```
+
+
+
+
+#### `Conclusions`
+
+Despite being extremely highly expressed in utero, Hist1H1e expression is severely downregulated after birth
+
+Additionally, while genes that decrease with age tend to slowly taper, many of the genes which increase with age show a large spike at ~60 yo
+
+#### `Immediate Follow Up Studies`
+I would like to investigate the role of Hist1H1e in astrocyte development by doing a knockout-gene study
+
+I would like to further investigate why these genes spike specifically in old age, it is odd for such a punctate shift at 60 yo, but the effect was either not seen or severely reduced in the 2 63yo cohorts
+
+### `Aknowledgements`
+
+I'd like to thank the Barres lab and their collaborators, particularly the Zhang lab for providing the Brain RNAseq database.  
+I'd also like to thank Dr Hirschey and all teaching assistants for their help with the course.

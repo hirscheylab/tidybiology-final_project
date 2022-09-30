@@ -1,0 +1,244 @@
+---
+title: "tidybiology_project"
+author: "Taylor Marie"
+date: "1 October 2021"
+output:   
+  html_document:
+    toc: true 
+    toc_float: 
+      collapsed: false 
+      smooth_scroll: false 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+library("readxl") #allows for reading excel files
+library("tidyverse") #provides useful functions 
+library("tidybiology") #provides useful functions 
+library("dplyr") #provides useful functions
+library("ggplot2") #allows for plotting
+library("ggsignif") #allows for calculations
+library("ggpubr") #allows for calculations
+library("plotrix") #allows for calculations
+library("fontawesome") #fun icons
+library("RColorBrewer") #plot colors
+
+```
+
+## Tidybiology: Growth Factor Treatment of Engineered Skeletal Muscle
+## By Taylor Marie Chavez
+
+### Background `r fa("bolt")`
+
+My experiments have looked at the effect of different growth factor treatment on satellite cells (__skeletal muscle stem cells__). I engineered 3D, functional skeletal muscle __myobundles__ from a pure myoblast population (sorted for CD56) then treated them with various growth factors __bFGF__, __HGF__, and __wnt7a__. Edu was incorporated to show proliferation following growth factor treatment. _Pax7_ __a satellite cell specific marker__ was used to label satellite cells within the myobundles. Image quantifications of immunostained myobundles allowed for the assessment of the amount of edu positive and _Pax7_ positive cells to determine the effect growth factors had on the cell population.
+
+<br>
+Here is a brief photo of one of my myobundle pairs in Panel A and a myobundle section with satellite cells shown in white in Panel B.
+<br>
+![Alt text](/Users/taylorchavez/Documents/tidybiology/tidybiology_class/science.png)
+
+First, I wanted to begin by ensuring I would have the libraries I would need for data analysis, specifically tidyverse, tidybiology, dplyr, gglot2, ggsignif, plotrix, and fontawesome.
+
+```{r libs, include=FALSE}
+
+#see comments above for what each library does
+library("readxl")
+library("tidyverse") 
+library("tidybiology")
+library("dplyr") 
+library("ggplot2") 
+library("ggsignif")
+library("ggpubr")
+library("plotrix")
+library("fontawesome")
+
+```
+
+Next, I imported and glimpsed my data to make sure it looked alright. 
+
+```{r data, echo=FALSE}
+# import my data
+my_data <- read_excel("Data_Table.xlsx") 
+
+# visualize my data
+glimpse(my_data)
+
+```
+
+<br>
+It was a relief that my data appeared to import ok and looked usable.
+<br>
+
+### Visualizing My Raw Data `r fa("eye")`
+I wanted to visualize the three most important measures (Pax7+%, edu+%, and Pax7+/edu+%) individually, starting with the percentage of _Pax7_ positive cells in myobundles. I thought a boxplot made the most sense, and placed my data points on overlaying the boxplot because there are not too many point. This allowed me to more clearly see the data variation.
+
+#### _Pax7_ Plot for Satellite Cell Population Quantification
+
+```{r paxsevplot, echo=FALSE}
+#organizes my groups so control group is on the far left side for easy comparison
+my_data$GF_Treatment <- factor(my_data$GF_Treatment, 
+                               levels = c("CTL","bFGF","HGF","wnt7a"))
+
+#plots the data
+ggplot(my_data) +
+ aes(x = GF_Treatment, #x axis
+     y = Paxsevper) + #y axis
+ geom_boxplot(shape = "bullet", #shape of points
+              fill = "#FF69B4") + #color of plot
+  stat_compare_means(label = "p.signif", #labels significance
+                     method = "wilcox.test",
+                     ref.group = "CTL",
+                     label.y = 65) + #moved the displayed p value so it was on the box plot
+  geom_point() + #labels values
+  #the next three lines label the plots
+ labs(x = "Growth Factor Treatment", 
+      y = "Pax7+ Percentage",
+      title = "Percentage of Satellite Cells in Myobundles") +
+  #I chose a minimal theme because I think it is clean
+ theme_minimal()
+
+```
+<br>
+<br>
+From this first graph, I see a higher percentage of _Pax7_ positive cells when myobundles are treated with bFGF and wnt7a but no treatment group is statistically significant. I really don't see too much of a difference between the control myobundles and HGF.
+<br>
+<br>
+I then wanted to visualize the percentage of edu positive cells after growth factor treatment.
+<br>
+<br>
+
+#### Edu Plot for Proliferation Assessment
+
+```{r eduplot, echo=FALSE}
+#organizes my groups so control group is on the far left side for easy comparison
+#it is probably redundant to do again, but it makes me feel better to have it in each chunk
+my_data$GF_Treatment <- factor(my_data$GF_Treatment, 
+                               levels = c("CTL","bFGF","HGF","wnt7a"))
+
+ggplot(my_data) + #plots my data
+ aes(x = GF_Treatment, #x axis
+     y = Eduposper) + #y axis
+ geom_boxplot(shape = "circle", #shape of point
+              fill = "purple") + #color of plot
+    stat_compare_means(label = "p.signif", #labels significance
+                     method = "wilcox.test",
+                     ref.group = "CTL") +
+  geom_point() + #place the points on top of barplot
+ #the next three lines label the plot
+  labs(x = "Growth Factor Treatment", 
+      y = "Edu+ Percentage",
+      title = "Percentage of Proliferating Cells Following Growth Factor Treatment") +
+ #minimal theme is clean and clear
+  theme_minimal()
+
+```
+<br>
+<br>
+From the second graph, I see a higher percentage of edu positive cells when myobundles are treated with bFGF, HGF, and wnt7a and all are statistically significant (bFGF p < 0.01 & HGF p < 0.05 & wnt7a p < 0.01). However, if you look at the y-axis scale, the percentage of any group is not greater than 9%.
+<br>
+<br>
+Finally, I wanted to look at the percentage of cells which were edu and _Pax7_ positive.
+<br>
+
+#### _Pax7_ Plus EDU Plot for Proliferating Satelitte Cell Assessment
+
+```{r eduandpaxplot, echo=FALSE}
+#organizes my groups so control group is on the far left side for easy comparison
+my_data$GF_Treatment <- factor(my_data$GF_Treatment, 
+                               levels = c("CTL","bFGF","HGF","wnt7a"))
+
+ggplot(my_data) + #plots the data
+ aes(x = GF_Treatment, #x axis
+     y = EduposPaxsevposper) + #y axis
+ geom_boxplot(shape = "circle", #shape of point
+              fill = "cyan") + #color of plot
+    stat_compare_means(label = "p.signif", #labels the significance
+                     method = "wilcox.test",
+                     ref.group = "CTL") +
+  geom_point() + #overlays actual values over barplot
+  #the next three lines label the plot
+ labs(x = "Growth Factor Treatment", 
+      y = "Edu+/Pax7+ Percentage",
+      title = "Percentage of Proliferating Satellite Cells After Growth Factor Treatment") +
+ #yay minimalism!!!
+  theme_minimal()
+
+```
+<br>
+<br>
+When looking at the third graph of my measureables, I see a higher percentage of _Pax7_ positive and edu positive cells when myobundles are treated with bFGF, HGF, and wnt7a but only bFGF (p < 0.001) and wnt7a (p < 0.01) are statistically significant. Again, the y-axis is low in value, so the amount of proliferating satellite cells is not very high.
+<br>
+<br>
+
+### Final Plot `r fa("chart-bar")`
+For the final visualization of my data, I wanted to directly compare the different percentages of my groups on a single **bar graph**!
+
+```{r finalplot, echo=FALSE}
+
+# I want the control data on the far left for easy reference
+my_data$GF_Treatment <- factor(my_data$GF_Treatment, 
+                               levels = c("CTL","HGF","bFGF","wnt7a"))
+
+my_data %>%
+  select(GF_Treatment, #must select the data I want to compare to make into a bar graph
+         contains("per")) %>%
+  pivot_longer(!GF_Treatment, #pivot_longer creates a new dataset of my data for bar graphs
+               names_to = "pos", #pos is for positive labeling of pax7/edu/both
+               values_to = "percentage") %>% 
+  group_by(GF_Treatment, pos) %>% 
+  summarize(mean = mean(percentage), #calculate the mean and standard error of my data
+            sem = std.error(percentage)) %>% 
+  ggplot(aes(x = GF_Treatment, #plots data and is the x value
+               y = mean, #y axis
+               group = pos,
+               fill = pos)) + #colors the plot by pos column
+  geom_col(position = "dodge") + #places the columns on the plot next to each other
+  #the next three lines label the plot
+  labs(x = "Growth Factor Treatment", 
+       y = "Percentage", 
+       title = "Comparing Growth Factor Treatment Effect on Satellite Cell Proliferation") +
+  scale_fill_brewer(name = "Legend", #renames the legend
+                      labels = c("Edu+/Pax7+", "Edu+", "Pax7+"), #renames the groups in legend
+                    palette = "Dark2") + #changes the color of the plot
+  geom_errorbar(position = position_dodge(width = 0.9), #adds error bars
+                width = 0.2, 
+                aes(ymin = mean - sem, #error bars are the standard error
+                    ymax = mean + sem, 
+                    x = GF_Treatment, 
+                    y = mean)) +
+  #I still enjoy the clarity of minimalism :)
+  theme_minimal()
+
+
+```
+
+<br>
+
+### Conclusions `r fa("grin-stars")`
+
+From my final graph, I can conclude bFGF and wnt7a had the most significant impact on the population of satellite cells within myobundles.
+<br>
+<br>
+
+### Prioritized Follow-Up Studies `r fa("flask")`
+
+#### Experimental Next Steps `r fa("vial")`
+
+Next steps involve functional testing of the growth-factor treated myobundles to determine if the increased satellite cell population increases myobundle force generation.
+<br>
+<br>
+
+#### Troubleshooting `r fa("cogs")`
+
+I would expect the edu+/*Pax7*+ population within each growth factor treatment group to make up the difference between the _Pax7_+ populations of the treatment group and control. I think I am not seeing that difference because images were taken from the middle of the myobundle and edu could not diffuse as deep as the growth factors. Follow-up studies could explore this further by taking z-stack images of myobundles to track edu diffusion into the myobundles.
+
+### Acknowledgments `r fa("star")`
+
+Thank you so much to the patient instructor __Matthew Hirschey__ and the also very patient TAs __Akshay Bareja__, __Junqi Lu__, and __Devang Thakkar__.
+<br>
+Thank you to the Bursac lab for helping fascilitate this research!
+![Alt text](/Users/taylorchavez/Documents/tidybiology/tidybiology_class/bursaclab.png)
+<br>
+<br>
+Funding Source: I am currently funded by T32GM008555

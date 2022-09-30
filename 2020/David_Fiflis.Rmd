@@ -1,0 +1,190 @@
+---
+title: "Tidybiology Final Project"
+author: "David Fiflis"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  html_document:
+    df_print: paged
+---
+## Load libraries
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(stringr)
+library(tidybiology)
+library(proteins)
+
+#uncomment (or select) to clear environment; good for provenance
+rm(list=ls()) 
+
+```
+
+## Import data
+In this code chunk, I am importing a list of all reported clinically relevant mutations to genes in the human genome.  
+This data is provided by the National Center for Biotechnology Information Clinical Variation database (NCBI ClinVar).
+
+```{r import}
+# Import file with unique pathogenic mutations per gene 
+Gene_Summary <- read.table("https://ftp.ncbi.nlm.nih.gov/pub/clinvar/tab_delimited/gene_specific_summary.txt") 
+
+# Import file with all reported mutations to the human genome
+Variant_Summary <- read_tsv("https://ftp.ncbi.nlm.nih.gov/pub/clinvar/tab_delimited/variant_summary.txt.gz")
+
+```
+
+## Take a `glimpse` into the data in the dataframe
+
+In this code chunk a glimpse of the ClinVar Data sets are provided which includes important information for each mutation:  the mutated gene name, chromosomal location of the gene, the polymorphism, the resulting amino acid mutation, and if the pathogenicity of the mutation.  
+  
+In this code chunk a glimpse of the proteins data set is also provided. Within this data set important information including the gene name, the protein size and protein weight are included for all known human proteins. 
+
+
+```{r glimpse}
+glimpse(Variant_Summary) 
+glimpse(Gene_Summary)
+glimpse(proteins)
+```
+## Data Trimming
+
+In this code chunk, the gene mutations data set is trimmed to retain only the gene symbol and the associated number of pathogenic mutations for that gene
+
+Furthermore, the data set containing all reported mutations is filtered to remove duplicate references as a result of NCBI recoding mutations in both the hg37 and hg38 reference genomes. The data set is also filtered to only retain pathogenic mutations.
+
+
+```{r }
+#Trim the gene mutations data set
+Gene_Summary<- Gene_Summary%>%
+  rename(Gene= V1, Number = V6)%>%
+  select(Gene,Number)  
+glimpse(Gene_Summary)
+
+#Trim the variant summary data set 
+unique_ClinVar <- Variant_Summary %>% 
+  filter(Assembly == "GRCh38") %>% #Filter on mutations mapped to hg38 reference  genome
+  filter(ClinicalSignificance == "Pathogenic")%>% #Filter based on pathogenicity
+  select(Type, Name, GeneSymbol,Chromosome) #Retain only the gene symbol, the mutation name, the mutations type, and the chromosomeID
+glimpse(unique_ClinVar)
+```
+  
+## Summary of unique_ClinVar  
+  
+Utilize the string detect function to seach through the mutation names and tally of reported mutation types. This determines a count for all different types of mutations.
+```{r}
+
+indel_count <- str_detect(unique_ClinVar$Type, "Indel")%>% #Tally unique reported indel mutations
+  sum()
+Deletion_count <- str_detect(unique_ClinVar$Type, "Deletion")%>% #Tally unique reported deletioin mutations
+  sum()
+duplication_count <- str_detect(unique_ClinVar$Type, "Duplication")%>% #Tally unique reported duplication mutations
+  sum()
+Microsatellite_count <- str_detect(unique_ClinVar$Type, "Microsatellite")%>% #Tally unique reported microsatellite mutations
+  sum()
+A2C <- str_detect(unique_ClinVar$Name, "A>C")%>% #Tally unique reported A>C mutations
+  sum()
+A2G <- str_detect(unique_ClinVar$Name, "A>G")%>% #Tally unique reported A>G mutations
+  sum()
+A2T <- str_detect(unique_ClinVar$Name, "A>T")%>% #Tally unique reported A>T mutations
+  sum()
+C2G <- str_detect(unique_ClinVar$Name, "C>G")%>% #Tally unique reported C>G mutations
+  sum()
+C2T <- str_detect(unique_ClinVar$Name, "C>T")%>% #Tally unique reported C>T mutations
+  sum()
+C2A <- str_detect(unique_ClinVar$Name, "C>A")%>% #Tally unique reported C>A mutations
+  sum()
+G2C <- str_detect(unique_ClinVar$Name, "G>C")%>% #Tally unique reported G>C mutations
+  sum()
+G2A <- str_detect(unique_ClinVar$Name, "G>A")%>% #Tally unique reported C>A mutations
+  sum()
+G2T <- str_detect(unique_ClinVar$Name, "G>T")%>% #Tally unique reported G>T mutations
+  sum()
+T2C <- str_detect(unique_ClinVar$Name, "T>C")%>% #Tally unique reported T>C mutations
+  sum()
+T2G <- str_detect(unique_ClinVar$Name, "T>G")%>% #Tally unique reported T>G mutations
+  sum()
+T2A <- str_detect(unique_ClinVar$Name, "T>A")%>% #Tally unique reported T>A mutations
+  sum()
+
+Mutation_Summary <-data.frame(Frequency=c(indel_count, Deletion_count, Microsatellite_count, A2C, A2G, A2T, C2G, C2T, C2A, G2C, G2A, G2T, T2C, T2G, T2A)) #Concatenate the mutations into a sinlge dataframe
+Mutation_Summary <- mutate(Mutation_Summary, Observations = c("Indel", "Deletion", "Microsatellite", "A>C", "A>G", "A>T", "C>G", "C>T", "C>A", "G>C", "G>A", "G>T", "T>C", "T>G", "T>A"))%>%
+   mutate(Percent = Frequency/sum(Frequency)*100) #Add column that calculates the percentage of all reported mutations  
+ 
+glimpse(Mutation_Summary)
+  
+```
+  
+## Summary of Pathogenic Genes  
+  
+This code chunk joins unique genes with reported pathogenic mutations and joins it with the associated protein data set. This data set is then annoted with the number of pathogenic mutations per gene. 
+
+```{r}
+#Identify unique genes associated with mutations
+unique_Genes <- unique_ClinVar %>%
+  select(GeneSymbol,Chromosome)%>%
+  unique()
+
+#Join Unique pathogenic genes with associated protein information
+unique_path_genes <- inner_join(unique_Genes,proteins, by = c("GeneSymbol"="gene_name"))
+
+#Join the above data set with the number of unique mutations per gene
+unique_path_genes <- left_join(unique_path_genes,Gene_Summary, by = c("GeneSymbol"= "Gene"))%>%
+  select(GeneSymbol, Chromosome, sequence, length, Number)
+
+unique_path_genes<-  transform(unique_path_genes, Number = as.numeric(Number))
+glimpse(unique_path_genes)
+
+```
+  
+##Graph  
+  
+The intention of this section is two fold. The first is to understand the relationship between gene size and pathogenic mutations. The second is to understand the mode of mutations in the human genome that cause disease.
+```{r}
+#Plotting the number of mutations per gene vs protein length
+ggplot(data = unique_path_genes)+
+  geom_point(mapping=aes(x=length, y=Number))+
+  scale_x_log10()+
+  scale_y_log10()+
+  stat_smooth(mapping=aes(x=length, y=Number))+
+  labs(x = "Protein Length (log)", y = "Number of Mutations (log)", title = "Documented Mutations vs. Protein Length")+
+  geom_text(aes(x=length, y=Number, label=ifelse(Number>1000,as.character(GeneSymbol),'')),hjust=0,vjust=0)+
+  theme_bw()
+
+#Plotting the distribution of unique mutations of each mutation type
+ggplot(data = Mutation_Summary)+
+  geom_col(mapping=aes(x=reorder(Observations, -Frequency), y=Percent, fill = Observations))+
+  theme_gray()+
+  theme(axis.text.x=element_text(angle=45, hjust=1),legend.position = "none")+
+  labs(x="", y = "Percent of Pathogenic Mutatoins", title = "Mutation Summary")+
+  geom_text(x=Mutation_Summary$Observations, y=Mutation_Summary$Percent, aes(label = Frequency), vjust = -0.2)
+
+```
+  
+##Mutations as a funciton of protein size  
+  
+The intention of this section is two fold. The first is to understand the relationship between gene size and pathogenic mutations. The second is to understand the mode of mutations in the human genome that cause disease.
+```{r}
+#Plotting the number of mutations per base vs cDNA lenght
+unique_path_genes<- unique_path_genes%>%
+  mutate(Nucleotides = length*3)%>%
+  mutate(PerBase = Number/Nucleotides)
+ggplot(data = unique_path_genes)+
+  geom_point(mapping=aes(x=Nucleotides, y=PerBase, size = Number))+
+  scale_x_log10()+
+  labs(x = "cDNA Length", y = "Number of Mutations per Base", title = "Mutations Per Base vs. Length of Protein Coding Sequence")+
+  geom_text(aes(x=Nucleotides, y=PerBase, label=ifelse(PerBase>.4,as.character(GeneSymbol),'')),hjust=-.2,vjust=.1)+
+  theme_bw()
+ggsave("MutationsPerBase.png", width = 6, height = 6)
+```
+  
+## Conclusions  
+  
+The appears to be a correlation between protein size and mutation occuance, however it does not seem to solely arise from the mutation error rate of DNA replication causing more mutations in larger protein coding genes. As the final graph shows, there appears to be an almost gaussian distribution in the relationship between reported mutations per base as a funcion of gene size.  
+  
+As for the mutation summary, it appears that deletion mutations are by far the most common type of mutation in the human genome. 
+
+```{r}
+#PROBABLY BEST TO LEAVE THIS HERE, BUT NO NEED TO PRINT IN THE FINAL REPORT.
+utils:::print.sessionInfo(sessionInfo()[-8]) 
+#You can remove an item from sessionInfo(), which is a list with a class attribute, by printing the resulting object omitting one of the list items (omitted list of packages installed, but not loaded)
+```
+

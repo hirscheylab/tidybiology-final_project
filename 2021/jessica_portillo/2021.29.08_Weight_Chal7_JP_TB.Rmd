@@ -1,0 +1,114 @@
+---
+title: "Tidybiology Final Project"
+author: "Jessica Portillo"
+date: "9/29/2021"
+output: 
+  html_document:
+      toc: true
+      toc_float: true
+      theme: lumen
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
+library(ghibli)
+library(ochRe)
+
+weight <- read.csv("~/Desktop/Smith_Lab/Chal7/Derived/2021.27.09_Chal7_Weights_Tidy_Wide_outlier_JP.csv")
+```
+
+## Glimpse of Data
+
+```{r}
+glimpse(weight)
+```
+
+
+
+## Tidying Data - Weights
+
+```{r}
+#Per sample
+weight_1 <- weight %>% 
+  select(c("X", "Animal", "Genotype", "Sex", "Cage", "Age_Inf_Wks","D02", "D18",  "D22", "D28","D35", "D39","D42", "D46", "D49", 
+           "D53"))
+
+weight_2 <- subset(weight_1, Sex=="M")
+weight_2 <- weight_2 %>%
+  pivot_longer(cols = c(D02, D18, D22, D28, D35, D39, D42, D46, D49, D53),
+                           names_to = "Timepoint")
+```
+
+## Data Visualization for Weights
+```{r, warning=FALSE}
+ggplot(weight_2,aes(x = Timepoint, y = value, fill = Timepoint )) +
+  geom_boxplot() + 
+  geom_point() + 
+  facet_wrap(~Genotype, scales = "free_x") + 
+  ylab("Weight (g)") + 
+  theme(axis.text.x = element_text(angle = 45, hjust=1)) + 
+  scale_fill_ochre(palette="olsen_seq")
+```
+
+
+## Tidying Data - Average Weight
+```{r}
+#Average Weight 
+weight_a <- tibble(weight)
+weight_a <- weight_a %>% 
+  select(c("X", "Animal", "Genotype", "Sex", "Cage", "Age_Inf_Wks", "Per_change_D18",  "Per_change_D22", "Per_change_D28", 
+           "Per_change_D35", "Per_change_D39","Per_change_D42", "Per_change_D46", "Per_change_D49", "Per_change_D53"))
+
+weight_b <- subset(weight_a, Sex=="M")
+weight_c <- aggregate(weight_b[, 7:15], list(weight_b$Genotype), mean)
+
+weight_d <- weight_c %>% 
+  pivot_longer(cols = c(Per_change_D18,  Per_change_D22, Per_change_D28, Per_change_D35, Per_change_D39, Per_change_D42, 
+                        Per_change_D46, Per_change_D49, Per_change_D53), names_to = "Timepoint")
+
+colnames(weight_d)[3] <- "Weight_Change"
+
+day <- c("D18","D22", "D28", "D35", "D39", "D42", "D46", "D49", "D53")
+
+weight_b1 <- weight_b %>% 
+  pivot_longer(cols = c(Per_change_D18,  Per_change_D22, Per_change_D28, Per_change_D35, Per_change_D39, Per_change_D42, 
+                        Per_change_D46, Per_change_D49, Per_change_D53), names_to = "Timepoint")
+
+colnames(weight_b1)[8] <- "Weight_Change"
+
+day <- c("D18","D22", "D28", "D35", "D39", "D42", "D46", "D49", "D53")
+
+```
+
+## Data Visualization for Average Weights
+```{r, warning=FALSE}
+weight_b1 %>% 
+  ggplot(aes(Timepoint, Weight_Change, color = Genotype)) + 
+  geom_boxplot() + 
+  scale_color_ghibli_d("MarnieMedium1", direction = -1) +
+  ylab("Weight Change (%)") + 
+  scale_x_discrete(labels = day)
+```
+
+
+```{r}
+na.omit(weight_d) %>% 
+  ggplot(aes(x=Timepoint, y=Weight_Change, group=Group.1, color = Group.1)) +
+  geom_line(data=weight_d[!is.na(weight_d$Weight_Change),], linetype="dashed") + 
+  geom_point(size = 2, shape=21) + 
+  scale_color_ghibli_d("MarnieMedium1", direction = -1) + 
+  ylab("Weight Change (%)") +
+  scale_x_discrete(labels = day) + 
+  guides(color=guide_legend(title="Genotype"))
+```
+
+## Conclusions
+Weight changes in CC030 mice was not what I expected it to be. CC030 mice are known to be highly susceptible and have resulted to have lost significantly more weight when infected with *Mycobacterium tuberculosis* in previous data. 
+
+## Follow-up
+I will be generating data visualization for the lung and spleen CFUs of these mice to determine whether or not there is an association between CFUs and weight change. 
+
+## Acknowledgements
+I want to personally thank the Smith Lab, Tidybiology instructors and students! 

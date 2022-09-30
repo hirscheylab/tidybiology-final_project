@@ -1,0 +1,167 @@
+---
+title: "Circadian Genes _cycle_ and _Clock_ control Sleep Patterns in _Drosophila melanogaster_"
+author: "by Jordan Schneider"
+date: "October 1, 2021"
+output: html_document
+---
+
+
+```{r include=FALSE}
+#loading packages
+library(dplyr)
+library(tidyverse)
+library(tidybiology)
+library(ggsignif)
+library(ggplot2)
+library(viridis)
+library(viridisLite)
+library(readxl)
+```
+
+```{r include=FALSE}
+#loading the data
+FlyClock <- read_excel("FlyClock.xlsx", sheet = 1) 
+```
+
+
+# Background  
+### This dataset was obtained from [Data Dryad](https://journals.plos.org/plosgenetics/article?id=10.1371/journal.pgen.1006507). It can be found in the supplementary data from the 2017 study entitled "Drosophila Clock Is Required in Brain Pacemaker Neurons to Prevent Premature Locomotor Aging Independently of Its Circadian Function." In this study, Vaccaro et al. discuss how the loss of circadian genes promotes locomotor aging and shortened lifespan by altering dopaminergic neuron activity. I chose this dataset because as an undergraduate, I studied the molecular mechanisms governing the wake-versus-sleep decision in _C. elegans_. Like Drosophila, _C. elegans_ also display cyclical periods of arrest that are analogous to circadian rhythms.
+
+# Setting up the Dataframe  
+### Prior to importing the dataset, I modified dataframe to have the following specifications:
+```{r echo=FALSE}
+glimpse(FlyClock)
+```
+
+### In order to get rid of any rows with missing data, I ran the following code:
+```{r}
+CleanFlyData <- na.omit(FlyClock)
+dim(CleanFlyData)
+```
+
+  
+# Analysis  
+### This supplementary dataset compares flies possessing mutations in two key circadian rhythmn genes, _Clock_ (_Clk_) and _cycle_ (_cyc_), to control flies (Cs). _Clk_ and _cyc_ encode transcription factors that form a heterodimer to control the expression of genes like _period_ and _timeless_. The authors wanted to understand the effects of altering genetic and environmental conditions such as light on the sleep behavior of flies. In order to do so, Vaccaro et al. subjected circadian mutant flies to either 24 hours of light (LL) or standard, 12 hour light-dark periods (LD).  
+### First, I wanted to identify the fly that slept for the longest amount of time. In order to do so, I arranged the dataset in descending order. 
+```{r echo=FALSE}
+CleanFlyData %>%
+  arrange(desc(total))
+```
+### Surprisingly, a _cyc_ mutant exposed to constant light (LL) slept the longest, sleeping a total of 1261 minutes (or about 21 hours) in 24 hours. This result suggests that disrupting both circadian gene function and light exposure could result in striking changes in sleep patterns.  
+### This result made me curious if genotype had a significant impact on the total time flies spent sleeping. In order to do so, I started by creating two seperate datasets: one for LL flies and the other for LD flies.
+```{r}
+LL_Dataset <- CleanFlyData %>% 
+  filter(light == "LL")
+
+LD_Dataset <- CleanFlyData %>% 
+  filter(light == "LD")
+```
+
+
+```{r include=FALSE}
+"theme" <- theme(
+    plot.title = element_text(size = 12, face = "bold"),
+    plot.subtitle = element_text(size = 10, face = "bold", color = "black"),
+    #panel.border = element_rect(size = 1.5, color = "black"),
+    
+    axis.line = element_line(colour = '1.5', size = 1.5),
+    axis.title = element_text(size = 10, face = "bold"),
+    axis.text = element_text(size = 10, face = "bold"),
+    
+    strip.text.x = element_text(size = 10, face = "bold", color = "black"),
+    strip.text.y = element_text(
+      size = 10,
+      face = "bold",
+      color = "black",
+      angle = 0),
+    strip.background = element_blank(),
+    
+    legend.title = element_text(size = 10, face = "bold"),
+    legend.text = element_text(size = 9, face = "bold"),
+    legend.key.width = unit(10, "pt"))
+```
+
+### In order to determine how mutations in circadian genes affect the total sleep of flies exposed to normal LD conditions, I compared genotype to the total sleep of LD flies.
+```{r echo=FALSE, message = FALSE, warning=FALSE}
+ggplot(LD_Dataset) +
+  aes(x = genotype, y = total) +
+  geom_boxplot(shape = "circle",color='grey') +
+  geom_point()+
+  
+  labs(title = 'Total Sleep of LD Drosophila',
+    x='Genotype',
+    y='Total Sleep (mins)') +
+  theme_minimal()+
+  
+  geom_signif(comparisons = list(c("Cs", "Clk AR")), color="blue")+
+  geom_signif(comparisons = list(c("Cs", "cyc")), color="red") +
+    
+  theme
+```
+  
+### By this comparison, it appears that mutations in _Clk_ and _cyc_ result in decreased total sleep, suggesting that mutations in the circadian genes cause flies to sleep less overall under normal LD conditions.  
+### In order to understand how environmental changes in light exposure may alter these results, I compared genotype to the total sleep of flies exposed contant light conditions (LL).
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(LL_Dataset) +
+  aes(x = genotype, y = total) +
+  geom_boxplot(shape = "circle",color='grey') +
+  geom_point() +
+  
+  labs(title = 'Total Sleep of LL Drosophila',
+    x='Genotype',
+    y='Total Sleep (mins)') +
+  theme_minimal()+
+  
+  geom_signif(comparisons = list(c("Cs", "Clk AR")), color="blue")+
+  geom_signif(comparisons = list(c("Cs", "cyc")), color="red")+
+  
+  theme
+```
+  
+### Unlike the previous result, it appears that exposure to constant light (LL) affects all of the genotypes similarly, since circadian mutant flies do not differ significantly from wild-type.  
+### Next, I wanted to determine if the duration of light exposure could significantly alter time spent sleeping at night, specifically, across all genotypes.
+```{r echo=FALSE, message = FALSE, warning=FALSE}
+ggplot(CleanFlyData) +
+  aes(x = light, y = night_sleep) +
+  geom_boxplot(shape = "circle", color="grey") +
+  geom_point()+
+  
+  labs(title = 'Length of Sleep at Night',
+    x='Light Condition',
+    y='Night Sleep (mins)') +
+  theme_minimal()+
+  
+  facet_wrap(vars(genotype))+
+  
+  geom_signif(comparisons = list(c("LD", "LL")), color="red")+
+  
+  theme
+```
+  
+### As one would expect, it appears that exposing wild-type flies to constant light decreases time spent sleeping at night. Interestingly, the circadian mutant flies appear to spend more time asleep at night when they are exposed to constant light conditions than when they are exposed to normal light-dark conditions. These result reinforce the idea that sleep is dependent on both gene function and environmental conditions like light duration.  
+### Next, I wanted to see if there was a correlation between the number of sleep bouts at night and the average duration of sleep bouts at night across the two conditions
+```{r echo=FALSE, message = FALSE}
+ggplot(CleanFlyData) +
+  aes(x = night_bout_number, y = night_bout, fill=genotype, col=genotype) +
+  geom_point(shape = "circle", size = 1.5,) +
+  geom_smooth(method = lm, color="black") +
+  
+  labs(title = 'Number of Sleep Bouts verus Bout Duration at Night',
+    x='Number of Bouts',
+    y='Bout Duration (mins)') +
+  theme_minimal()+
+
+facet_wrap(vars(genotype)) +
+  
+  theme
+```
+  
+### Based on the slope of the lines above, it becomes clear that _Clk_ and _cyc_ mutants experience a weaker correlation in sleep bout number and sleep bout duration compare to wild-type. These results confirm that Clk and cyc are important for the normal regulation of sleep bout duration and frequency. Mutating either of these genes results in aberrent sleep patterns, indicative of altered circadial rhythms.  
+# Conclusion  
+### Based on the data above, it appears that Clk and cyc are critical for the regulation of normal sleep behavior in flies. Additionally, this behavior is co-dependent on environmental conditions like light exposure. Disrupting Clk and cyc results in unregulated sleep bout patterns at night, regardless of light duration.
+
+# Follow up studies  
+### In the future, it would be interesting to determine how mutations in light-sensing pathway genes like pigment dispersing factor (PDF) regulate circadian rhythms in the flies. Additionally, it would be interesting to compare how sleep duration at night correlates to the abundance of ROS, since one of the proposed function of sleep is to reduce oxidative damage.
+
+# Acknowledgements  
+### Thank you [samhsa.gov](https://www.datafiles.samhsa.gov/get-help/format-specific-issues/how-do-i-read-data-r) for teaching me the read_excel() command. Also, thank you to my undergraduate advisor, Dr. Bruce Wightman of Muhlenberg College, for inspiring this project idea. His investigation into the molecular mechanisms governing the wake-versus-sleep decision in _C. elegans_ served as the fundation for my data search.

@@ -1,0 +1,201 @@
+---
+title: "Tidybiology Final Project"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+Federica Mosti
+
+## Loading Libraries
+
+```{r message=FALSE}
+library(tidyverse)
+library(tidybiology)
+library(ggrepel)
+library(gridExtra)
+library(readxl)
+```
+
+## Import Data 
+
+First I imported the chromosome dataset from the tidybiology library. 
+```{r}
+data("chromosome")
+glimpse(chromosome)
+```
+
+I was interested in human telomeres, so I created a dataset with data from public articles and  databases.
+
+```{r include=FALSE}
+Telomeres <- read_xlsx("/Users/federica/tidybiology/Telomeres.xlsx")
+```
+```{r}
+glimpse(Telomeres)
+```
+
+
+## Prepare dataset 
+
+I joint the dataset and prepared for labeling the graph
+```{r}
+new_chromosome <- left_join(chromosome, Telomeres, by= "id")
+
+#I created a new column which will be useful later.
+new_chromosome1 <- new_chromosome %>%
+  mutate(last_gene=basepairs-Nearest_gene)
+
+# I changed the order of the id column manually
+new_chromosome2 <- new_chromosome1
+new_chromosome2$id <- factor(new_chromosome2$id,                                   
+                  levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11","12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "X", "Y"))
+glimpse(new_chromosome2)
+```
+```{r include=FALSE}
+Ychrom <- new_chromosome %>%
+  arrange(telomere_arm_q_length_mbp_lymphocytes) %>%
+  slice(1)
+Secchrom <- new_chromosome %>%
+  arrange(telomere_arm_q_length_mbp_lymphocytes) %>%
+  slice(3)
+```
+
+
+## Exploratory Data Analysis
+### Graph 1
+
+I checked if there was a correlation between chromosome length and telomere length (of both arm p and q)  in lymphocytes.
+
+```{r message=FALSE, fig.width= 9, fig.height= 7}
+ggplot(new_chromosome) +
+  geom_point(aes(x=length_mm, y = telomere_arm_q_length_mbp_lymphocytes, color = "red"), size = 2) +
+  geom_smooth(aes(x=length_mm, y = telomere_arm_q_length_mbp_lymphocytes), method = "lm", se = FALSE, col="red")+
+  geom_text_repel(data=Ychrom, aes(x=length_mm, y = telomere_arm_q_length_mbp_lymphocytes, label="Yq"))+
+  geom_text_repel(data=Secchrom, aes(x=length_mm, y = telomere_arm_q_length_mbp_lymphocytes, label="2q"))+
+  geom_point(aes(x=length_mm, y = telomere_arm_p_length_mbp_lymphocytes, color = "blue"), size = 2)+
+  geom_smooth(aes(x=length_mm, y = telomere_arm_p_length_mbp_lymphocytes), method = "lm", se = FALSE, col="blue")+
+  geom_text_repel(data=Ychrom, aes(x=length_mm, y = telomere_arm_p_length_mbp_lymphocytes, label="Yp"))+
+  geom_text_repel(data=Secchrom, aes(x=length_mm, y = telomere_arm_p_length_mbp_lymphocytes, label="2p"))+
+  scale_colour_manual(name = 'Legend', guide = 'legend', values = c('red' = 'red', 'blue' = 'blue'),labels = c('Telomeres p arm','Telomeres q arm'))+
+  labs(x = "Chromosome Lenght (mm)", y = "Telomeres length (mbp)", title = "Lenght of Human Telomeres in fuction of Chromosome Length", caption = "Data from Kelley et al., 2005")+
+  scale_shape_manual(values = c("blue" = 1, "red" = 1))+
+  theme_bw()
+```
+
+## Check other cell types
+### Graph 2
+
+Then, I wanted to check if the telomere of arm q of Y and 2nd chromosomes were shorter in other tissues, too.
+
+```{r include=FALSE}
+#Questo è il graphico per la legenda
+mylegend <- ggplot(new_chromosome) +
+  geom_point(aes(x=length_mm, y = telomere_arm_q_length_mbp_lymphocytes, col = "red"), size = 2) +
+  labs(x = "Chromosome Lenght", y = "Telomeres length")+
+  geom_point(aes(x=length_mm, y = telomere_arm_q_length_mbp_lung, col = "green"), size = 2) +
+  geom_point(aes(x=length_mm, y = telomere_arm_q_length_mbp_pancreas, col = "deepskyblue1"), size = 2) +
+  geom_point(aes(x=length_mm, y = telomere_arm_q_length_mbp_skin, col = "orange",), size = 2) +
+  scale_color_manual(name = 'Legend', values = c("red", "green", "deepskyblue1", "orange"), labels = c("Lymphocytes", "Lungs", "Pancreas", "Skin"), guide = "legend")+
+  theme(legend.position="right", legend.direction = "horizontal")
+  theme_bw()
+```
+
+```{r fig.width= 8, fig.height= 6}
+Lym <- ggplot(new_chromosome) +
+  geom_point(aes(x=length_mm, y = telomere_arm_q_length_mbp_lymphocytes), col = "red", size = 2) +
+  geom_text_repel(data=Ychrom, aes(x=length_mm, y = telomere_arm_q_length_mbp_lymphocytes, label="Yq"))+
+  geom_text_repel(data=Secchrom, aes(x=length_mm, y = telomere_arm_q_length_mbp_lymphocytes, label="2q"))+
+  labs(x = "Chromosome Lenght (mm)", y = "Telomeres length (mbp)")+
+  theme_bw()
+Lung <-ggplot(new_chromosome) +
+  geom_point(aes(x=length_mm, y = telomere_arm_q_length_mbp_lung),col = "green", size = 2) +
+  geom_text_repel(data=Ychrom, aes(x=length_mm, y = telomere_arm_q_length_mbp_lung, label="Yq"))+
+  geom_text_repel(data=Secchrom, aes(x=length_mm, y = telomere_arm_q_length_mbp_lung, label="2q"))+
+  labs(x = "Chromosome Lenght (mm)", y = "Telomeres length (mbp)")+
+  theme_bw()
+Pan <- ggplot(new_chromosome) +
+  geom_point(aes(x=length_mm, y = telomere_arm_q_length_mbp_pancreas), col = "deepskyblue1", size = 2) +
+  geom_text_repel(data=Ychrom, aes(x=length_mm, y = telomere_arm_q_length_mbp_pancreas, label="Yq"))+
+  geom_text_repel(data=Secchrom, aes(x=length_mm, y = telomere_arm_q_length_mbp_pancreas, label="2q"))+
+  labs(x = "Chromosome Lenght (mm)", y = "Telomeres length (mbp)")+
+  theme_bw()
+  
+Skin <-ggplot(new_chromosome) +
+  geom_point(aes(x=length_mm, y = telomere_arm_q_length_mbp_skin), col = "orange", size = 2) +
+  geom_text_repel(data=Ychrom, aes(x=length_mm, y = telomere_arm_q_length_mbp_skin, label="Yq"))+
+  geom_text_repel(data=Secchrom, aes(x=length_mm, y = telomere_arm_q_length_mbp_skin, label="2q"))+
+  labs(x = "Chromosome Lenght (mm)", y = "Telomeres length (mbp)")+
+  theme_bw()
+
+extract_legend <- function(my_ggp) {
+  step1 <- ggplot_gtable(ggplot_build(my_ggp))
+  step2 <- which(sapply(step1$grobs, function(x) x$name) == "guide-box")
+  step3 <- step1$grobs[[step2]]
+  return(step3)
+}
+shared_legend <- extract_legend(mylegend)
+grid.arrange(arrangeGrob(Lym, Lung, Pan, Skin, ncol = 2), shared_legend, nrow = 2, heights = c(10, 1), top = "Telomere length in different tissues")
+
+```
+
+## How many immunity-related genes are express in each human chromosome?
+### Graph 3
+
+I wanted to know if this shorter telomere in chromosome 2 depends on how many immunity-related genes were present in chromosome 2 and if that can lead to a more open chromatin and then, a shorter telomere.
+
+```{r fig.width= 8, fig.height= 6}
+ggplot(new_chromosome2, aes(x=id, y=Percentage_immune_system_genes)) +
+  geom_segment(aes(x=id,xend=id, y=0, yend=Percentage_immune_system_genes), color=ifelse(new_chromosome2$id %in% c("2"), "red", "grey50"), size=ifelse(new_chromosome2$id %in% c("2"), 1.3, 0.7) ) +
+  geom_point( color=ifelse(new_chromosome2$id %in% c("2"), "red", "grey50"), size=ifelse(new_chromosome2$id %in% c("2"), 5, 2) ) +
+  labs(x = "Chromosome", y = "% of immune system genes", title = "Percentage of immunity-related genes in each chromosome", caption = "Data from innateDB")+
+  theme(legend.position="none")+
+  theme_bw()
+```
+
+## Are immunity-related genes in chromosome 2 nearer the telomeres?
+### Graph 4
+
+Finally, I wondered if the problem 
+
+```{r fig.width= 8, fig.height= 6}
+ggplot(new_chromosome2, aes(x=id, y=last_gene)) +
+  geom_segment(aes(x=id,xend=id, y=0, yend=last_gene), color=ifelse(new_chromosome2$id %in% c("2"), "red", "grey50"), size=ifelse(new_chromosome2$id %in% c("2"), 1.3, 0.7) ) +
+  geom_point( color=ifelse(new_chromosome2$id %in% c("2"), "red", "grey50"), size=ifelse(new_chromosome2$id %in% c("2"), 5, 2) ) +
+  labs(x = "Chromosome", y = "Distance from the end of the chromosome (bp)", title = "Location of the gene nearest to the telomere", caption = "Data from innateDB")+
+  theme(legend.position="none")+
+  theme_bw()
+```
+
+
+## Conclusion
+
+I actually don't knnow why chromosome 2 has a storter telomere in lymphocytes and all my hypothesis have proved to be wrong.
+
+## Prioritized follow-up studies
+
+* Check telomere length in lymphocytes with different techniques
+
+* Check if in different kind of lymphocytes the telomeres are different
+
+* Check epigenetic status of telomeres of chromosome 2 in lymphocytes 
+
+* Check nuclear architecture
+
+## Bibliography
+
+Kelley J, de Bono B, Trowsdale J. IRIS: a database surveying known human immune system genes. Genomics. 2005 Apr;85(4):503-11. doi: 10.1016/j.ygeno.2005.01.009. PMID: 15780753.
+
+Demanelis K, Jasmine F, Chen LS, Chernoff M, Tong L, Delgado D, Zhang C, Shinkle J, Sabarinathan M, Lin H, Ramirez E, Oliva M, Kim-Hellmuth S, Stranger BE, Lai TP, Aviv A, Ardlie KG, Aguet F, Ahsan H; GTEx Consortium, Doherty JA, Kibriya MG, Pierce BL. Determinants of telomere length across human tissues. Science. 2020 Sep 11;369(6509):eaaz6876. doi: 10.1126/science.aaz6876. PMID: 32913074.
+
+https://www.innatedb.com/
+
+## Acknoledgements
+
+Shout out to Matt, Akshay for giving us some tools to actually code on R and my classmates for listening to me. 
+
+### Session information for provenance and reproducibility
+
+```{r}
+utils:::print.sessionInfo(sessionInfo()[-8]) 
+```
+

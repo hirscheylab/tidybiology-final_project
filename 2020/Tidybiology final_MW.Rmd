@@ -1,0 +1,134 @@
+---
+title: "Tidybiology Final Project_MW"
+author: "Mandy Wang"
+date: "11/13/2020"
+output:
+  pdf_document: default
+  html_document: default
+    
+---
+
+
+
+# Load libraries 
+```{r}
+#For reading the input file
+# library("xlsx") 
+
+# For data processing 
+library("skimr") 
+library("sjmisc") 
+library("dplyr") 
+library("ggpubr") 
+library("rstatix") 
+library("moments") 
+library("emmeans")  
+
+#For making graphs 
+library("ggplot2")
+library("tidyverse")
+library("viridisLite") 
+library("viridis")  
+library("ggsignif") 
+library("extrafont") 
+library("svglite") 
+library("ggrepel") 
+```
+
+
+# Data import 
+## RNA sequencing data 
+```{r, echo=FALSE, results='hide'}
+RNASeq <- read.csv("RNAseq.csv")  
+#read.xlsx2() is faster on big files compared to read.xlsx function]
+#read.xlsx2(file, sheetIndex, header=TRUE)
+#file.choose() asks to choose a file; the default directory is where you store this markdown file
+
+RNASeq
+```
+## TH2 pathway gene list 
+```{r,  echo=FALSE, results='hide'}
+TH2Gene <- read.csv("TH2 pathway gene.csv")
+
+TH2Gene
+```
+## Find out the unqiue gene names from the TH2 gene dataset 
+```{r}
+TH2GeneUnqiueGeneName <- unique(unlist(TH2Gene$Symbol, use.names = FALSE))
+TH2GeneUnqiueGeneName
+```
+
+## Use the unique gene name list to filter the RNA sequencing data by GeneName
+```{r}
+RNASeqTH2 <- RNASeq[RNASeq$GeneName %in% TH2GeneUnqiueGeneName ,]
+RNASeqTH2 %>%
+  write.csv("RNASeqTH2.csv") # Write out the csv so you can flatten the dataset inside Excel 
+```
+
+# Read back the flattened RNA sequencing dataset that was filtered by TH2 gene signature
+```{r, echo=FALSE, results='hide'}
+RNASeqTH2ZScoreFlat <- read.csv("RNASeqTH2ZScore.csv")
+
+RNASeqTH2ZScoreFlat
+```
+
+## Column type conversion  
+```{r, echo=FALSE, results='hide'}
+RNASeqTH2ZScoreFlat$Z.score <- as.numeric(RNASeqTH2ZScoreFlat$Z.score)
+
+RNASeqTH2ZScoreFlat$log2FoldChange <- as.numeric(RNASeqTH2ZScoreFlat$log2FoldChange)
+
+RNASeqTH2ZScoreFlat
+```
+
+## Plot generation
+```{r}
+ggplot(RNASeqTH2ZScoreFlat) +
+   aes(x = factor(Labels, levels=c("UDC-1","UDC-2","UDC-3","EDC-1","EDC-2","EDC-3")), y = GeneName, fill = Z.score) +
+   geom_tile(size = 1L) +
+   scale_fill_gradient2(low="#204ad4", mid="white", high="red") +
+  labs(title="Differential Gene Expression in Exosomes-treated Dendritic Cells", x="", y = "Gene Name") +
+   theme_minimal()
+```
+
+# Filtered data by log2
+## Filter the dataset
+```{r, echo=FALSE, results='hide'}
+RNASeqTH2ZScoreFlatFiltered <- RNASeqTH2ZScoreFlat[RNASeqTH2ZScoreFlat$log2FoldChange>=1.5,] # Z-score need to be larger than 1.5 to be valid 
+
+RNASeqTH2ZScoreFlatFiltered
+```
+
+## Final Graph 
+```{r}
+RNASeqTH2ZScoreFlatFiltered$Z.score <- as.numeric(RNASeqTH2ZScoreFlatFiltered$Z.score)
+
+RNASeqTH2ZScoreFlatFiltered
+
+ggplot(RNASeqTH2ZScoreFlatFiltered) +
+   aes(x = factor(Labels, levels=c("UDC-1","UDC-2","UDC-3","EDC-1","EDC-2","EDC-3")), y = GeneName, fill = Z.score) +
+   geom_tile(size = 1L) +
+   scale_fill_gradient2(low="#204ad4", mid="white", high="red") +
+  labs(title="Differential Gene Expression in Exosomes-treated Dendritic Cells", x="", y = "Gene Name")+
+   theme_minimal()
+```
+
+
+
+=
+
+
+# Prioritized follow-up studies
+I would like to look at the protein expression of those genes using Western blot analysis and flow cytometry. I will also look at transcription factors (pSTAT4 and pSTAT6) mediating Th2 polarization by DCs. 
+
+# Conclusions 
+Following melanoma cell-derived exosomes stimulation, dendritic cells has an upregulated gene program associated with the Th2 pathway. Given that Th2-type inflammation has been proposed to facilitate tumor growth, metastasis, this result suggests that Th2 polarization in tumor microenvironment might be mediated by exosomes.
+
+# Acknowledgements 
+I would like to thank my lab for the source data, the creaters of the tidybiology package, Akshay Bareja and Dr. Matt Hirschey for the teaching. 
+
+
+
+
+
+

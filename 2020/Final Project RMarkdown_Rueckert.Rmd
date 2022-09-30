@@ -1,0 +1,136 @@
+---
+title: "Tidybiology Final Project"
+author: "H Rueckert"
+date: "11/15/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Cathepsin B Sequence Comparison
+
+Adult mammals have remarkably little ability to regenerate adult tissues. Zebrafish, on the other hand, have the ability to regenerate their hearts after various types of damage. Because of this there is great interest in understanding the genes and signaling pathways involved in zebrafish heart regeneration.
+
+A 2006 study (<https://www.ncbi.nlm.nih.gov/pmc/articles/PMC1523227/>) by Keating's Group at Harvard provided one of the first RNA-seq datasets to genes up and down-regulated during zebrafish heart regeneration. A variety of categories of genes were shown to be upregulated, but in the **Wound Response/Inflammatory Markers** category the gene **Cathepsin B** had one of the largest postive fold changes. Humans also have a homolog of Cathepsin B, so I was interested in understanding the alignment of the amino acid sequences.
+
+## Data Import
+
+The first step was to create the proper dataframes in order to learn more about the data set. I had 2 excel files to begin with: 
+
+**Sequence_Mismatches** - all 90 amino acid mismatches between the human and zebrafish Cathepsin B protein sequences
+
+**Amino_Acid_Categories** -  each amino acid and what chemical type (polar, non-polar, positive, etc) its sidegroup is
+
+Two consecutive left_joins were used to create the **Combined_Dataframe** with each species' amino acid and the category it fit into.
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+library(tidyverse)
+library(ggplot2)
+```
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+amino_acid_categories = read_csv("Amino_Acid_Categories.csv")
+head(amino_acid_categories)
+
+sequence_mismatches = read_csv("Sequence_Mismatches.csv")
+head(sequence_mismatches)
+
+```
+
+```{r}
+
+str(amino_acid_categories)
+join_with_human = left_join(sequence_mismatches, amino_acid_categories, by = c("Human" ="Amino_acid")) %>% 
+  rename("Human_category" = "Category") 
+
+join_with_zebra = join_with_human %>% 
+  left_join(amino_acid_categories,  by = c("Zebrafish"  ="Amino_acid")) %>% 
+  rename("Zebra_category" = "Category")
+
+join_with_zebra
+
+combined_dataframe  = join_with_zebra
+```
+## Data Manipulation
+
+Now that all the data was combined into a single dataframe it was time to compare the amino acids to each other and document the transition. Two new columns were created. The first was **Aminos_Match** and it compared whether or not the categories of the amino acid mismatches were the same between zebrafish and human. The second was **Transition_Type** which showed the change between the human and zebrafish amino acid category.
+
+```{r}
+comparison_dataframe = combined_dataframe %>% 
+  mutate(aminos_match =Human_category == Zebra_category)
+
+comparison_dataframe$aminos_match[is.na(comparison_dataframe$aminos_match)] <- FALSE
+
+comparison_dataframe= comparison_dataframe %>% 
+  mutate(transition_type = paste(Human_category,"->", Zebra_category))
+
+comparison_dataframe 
+```
+## Plot Creation
+### Plot 1: Transition Type Quantification
+
+The first plot shows the number of each transition type found in the mismatches. It is a bar graph showing the quantification of each amino acid category transition type and colored based on whether or not the transition takes place in the same category or not.
+
+As you can see, the 2 most common transition types are **non-polar -> non-polar** and **polar -> polar**, which are "TRUE" in the aminos_match column.
+
+```{r}
+
+p1 <- ggplot(comparison_dataframe) +
+  geom_bar(aes(y = transition_type, fill = aminos_match)) +
+  labs(x="Number of Mismatches", y="Transition Type") +
+  ggtitle("Amnino Acid Changes Between Cathepsin B Proteins") +
+  scale_fill_brewer(palette ="Accent")
+  ggsave("Plot 1_Final Project.png")
+p1
+
+```
+
+### Plot 2: Specific Amino Acid Changes
+
+For the second plot I wanted to look at specific amino-acid transitions. For example the number of times a human alanine turned into a zebrafish serine. To do this there was further data manipulation that needed to take place. I created a new category showing the  counts of  transition type (as shown in plot 1) and then broke that down into the actual counts of specific amino acid X -> Y transitions.
+
+```{r, results=FALSE}
+top_transitions = comparison_dataframe %>% 
+  group_by(transition_type) %>% 
+  mutate(count_transition = n()) %>% 
+  ungroup()
+
+top_transitions
+```
+
+```{r}
+summarize_transitions = top_transitions %>% 
+  group_by(Human, Zebrafish,  transition_type) %>% 
+  summarise(counts = n()) %>% 
+  mutate(amino_string = paste(Human, "->", Zebrafish))
+  
+summarize_transitions 
+
+```
+
+I then plotted these transitions with the human amino acids on the x and zebrafish amino acids on the y with the size of the point indicating the relative number of those transitions that took place within the Cathepsin B sequence.
+
+```{r}
+
+p2 <- ggplot(summarize_transitions) +
+  geom_point(aes(x = Human, y = Zebrafish, color = transition_type, size = counts)) +
+  labs(x="Human Amino Acid", y="Zebrafish Amino Acid", title="Specific Amino Acid Transition Counts") +
+  ggtitle("Specific Amino Acid Transition Counts") +
+  guides(size = FALSE) +
+  theme(legend.text = element_text(size = 8)) +
+  theme(legend.title = element_text(size = FALSE))
+  ggsave("Plot 2_Final Project.png")
+p2
+
+```
+
+
+## Conclusions
+From these two plots we can conclude a few things:
+1) Most amino acid changes in the Cathepsin B sequence result in different amino acids, but the same category of amino acid.
+2) The top amino acids changes are alanine -> serine and valine -> isoleucine. Looking at codon charts to analyze how these changes come about we can see that a single nucleotide change can cause them. However, there are a large number of amino acids for which one base change leads to a non-synonymous amino acid change so why these are the most common remains unclear.
+
+## Further Analysis
+Further work using this methodology could be done for many other zebrafish cardiac regeneration genes. With larger numbers of proteins trends may emerge. It trends do emerge, the biochemistry of these changes could be also assessed in understanding any changes in protein folding, active site function, or binding domains functions.

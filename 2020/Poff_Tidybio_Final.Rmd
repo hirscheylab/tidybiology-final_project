@@ -1,0 +1,144 @@
+---
+title: "Poff Tidybiology Final Project-Fall 2020"
+author: "Abby Poff"
+date: "`r format(Sys.time(), '%B %d, %Y')`" #put in quotes to make YAML recognize it
+---
+## Load libraries, such as tidyverse and tidybiology
+```{r setup}
+#uncomment (or select) to clear environment; good for provenance
+rm(list=ls()) 
+
+library(tidyverse)
+library(tidybiology)
+library(dplyr)
+library(readxl)
+library(RColorBrewer)
+```
+
+## Import data
+For this project, I've chosen to use patient data from a recent publication from my lab. The Silver lab is broadly interested in RNA regulation in cortical development, and this paper looks at DDX3X, an RNA helicase important for translational regulation in the neural progenitor cells of the cortex. Mutations in which are causative of DDX3X Syndrome, a neurodevelopmental disorder characterized by brain structural abnormalities, intellectual disability, and autism, among other patient findings. This dataset includes clinical information for each DDX3X Syndrome patient characterized within the scope of this study.
+```{r import}
+#IMPORT YOUR DATA
+#MAKE SURE TO GET THE CODE CHUNK OPTIONS SET
+ddx_pt_data = read.csv("/Users/ajpoff/Downloads/ddx3x_syndrome_pt_data_neuron2020.csv", stringsAsFactors = FALSE)
+```
+
+## Take a `glimpse` into the data in the dataframe
+In this dataset, each patient has a numerical identifier, mutation information (such as nucleotide change and subsequent effect on protein), and clinical findings.
+```{r glimpse}
+#DEPENDING ON DATA, NOT TOTALLY NECESSARY
+glimpse(ddx_pt_data)
+```
+## EDA
+EXPLORATORY DATA ANALYSIS
+For my particular project in the lab, I'm studying missense mutations in DDX3X, so I thought I'd first see how patients with missense mutations' clinical findings compare with patients with other kinds of mutations. Out of all the clinical findings, I chose the Vineland Total Score data because it's on a continuous scale (as opposed to normal/abnormal or yes/no abnormality) and because it's a measure of adaptive behavior, or an individual's ability to perform everyday life tasks (subsetted into three domains: Communication, Daily Living Skills, and Socialization). First, I just looked at how all the mutation types affect patients' Vineland Scores.
+```{r}
+#COMMENCE ROLLING
+#MAKE COMMENTS
+#WRITE WHAT YOU SEE
+
+ggplot(ddx_pt_data, aes(Vineland_Total_Score))+
+  geom_bar(aes(color = Mutation_Type, fill = Mutation_Type), width = 0.9)+
+  geom_vline(xintercept = 66, linetype = "dashed", color = "gray")+
+  labs(x ="Vineland Total Score")
+
+```
+From this, it seems as though splice site mutations (predicted loss-of-function) are clustered more toward higher scores, followed by in-frame deletions, while the other mutation groups (including missense mutations) are more evenly dispersed across the scores. Important to know, in the Vineland, lower scores are indicative of deficits in adaptive behavior (and the standard score is 66, gray dashed line on plot). 
+
+However, the number of subcategories of mutations makes it difficult to see any overarching trends, so I decided to lump the mutation types into two groups: LoF (predicted loss-of-function mutations, resulting in no protein), and missense (predicted to make protein, so could be having dominant negative effects).
+
+Replotting the Vineland Scores with these new divisions looks like this:
+
+```{r}
+#Ended up using base R for this--I'm still more comfortable with it than tidyverse. Another day when I am less crunched for time, I'll figure out a more tidyverse-friendly (and hopefully less wordy) way to do this.
+ddx_pt_data_LoF <- ddx_pt_data$Mutation_Type == "frameshift " | ddx_pt_data$Mutation_Type == "nonsense" | ddx_pt_data$Mutation_Type == "splice site" | ddx_pt_data$Mutation_Type == "in frame deletion " | ddx_pt_data$Mutation_Type == "in frame deletion/insertion "
+ddx_pt_data$Mutation_Type[ddx_pt_data_LoF] <- "LoF"
+glimpse(ddx_pt_data)
+
+ggplot(ddx_pt_data, aes(Vineland_Total_Score))+
+  geom_bar(aes(color = Mutation_Type, fill = Mutation_Type), width = 0.9)+
+  geom_vline(xintercept = 66, linetype = "dashed", color = "gray")+
+  labs(x ="Vineland Total Score")
+```
+Now it's (somewhat) clear that though both groups have decent spread across score types, there's more LoF at higher scores and more missense at lower scores (so missense is correlated with deficits in adaptive behavior). But what about for other patient findings? Say, structural brain abnormalities?
+
+```{r}
+ggplot(ddx_pt_data, aes(White_Matter_Volume))+
+  geom_bar(aes(color = Mutation_Type, fill = Mutation_Type))+
+  labs(x ="White Matter Volume Findings")
+```
+  From this, it also seems like patients with missense mutations are more likely to have decreased white matter, though we also see here that a number of the patients in our dataset have an NA value for this finding (meaning we don't have clinical data for them, likely because they didn't have neuroimaging done).
+  
+  I'm certainly simplifying things by shuttling all patient mutations into one of just two bins. To give you an idea of the heterogeneity of mutations we see in patients, let's color-code their Vineland scores by mutation instead, first for all patients (so LoF and missense mutations) and then just for the missense mutations:
+  
+## Final Graph
+```{r final_graph}
+#ggplot(ddx_pt_data, aes(Vineland_Total_Score))+
+  #geom_bar(aes(color = Nucleotide_Change, fill = Nucleotide_Change), width = 0.9)+
+  #geom_vline(xintercept = 66, linetype = "dashed", color = "gray")+
+  #labs(x ="Vineland Total Score")
+
+#The default color package here actually ran out of colors for the number of mutations represented in this dataset--there shouldn't be that many vomit-y green bars at sub-30 scores. 
+
+#MAKE IT SHINE
+colourCount = 47
+getPalette = colorRampPalette(brewer.pal(9, "Set1"))
+
+ggplot(ddx_pt_data, aes(Vineland_Total_Score))+
+  geom_bar(aes(fill = Nucleotide_Change), width = 0.9)+
+  geom_vline(xintercept = 66, linetype = "dashed", color = "gray")+
+  labs(x ="Vineland Total Score, mutations color-coded")+
+  scale_fill_manual(values = getPalette(colourCount)) +
+  theme(legend.position = "none")
+
+ddx_pt_data_missenseonly <- ddx_pt_data %>%
+  select(Nucleotide_Change, Amino_Acid_Change, Mutation_Type, Vineland_Total_Score) %>%
+  filter(str_detect(Mutation_Type, "missense"))
+
+ggplot(ddx_pt_data_missenseonly, aes(Vineland_Total_Score))+
+  geom_bar(aes(fill = Nucleotide_Change), width = 0.9)+
+  geom_vline(xintercept = 66, linetype = "dashed", color = "gray")+
+  labs(x ="Vineland Total Score, unique missense mutations color-coded")+
+  scale_fill_manual(values = getPalette(colourCount)) +
+  theme(legend.position = "none")
+
+matches <- regmatches(ddx_pt_data_missenseonly$Amino_Acid_Change, regexpr("[[:digit:]]+", ddx_pt_data_missenseonly$Amino_Acid_Change))
+matches <- as.numeric(unlist(matches))
+ddx_pt_data_missenseonly$AminoAcidAffectedPosition <- matches
+
+ddx_pt_data_missenseonly_withdomains = read.csv("/Users/ajpoff/ddx_pt_data_missenseonly_withdomains.csv", stringsAsFactors = FALSE)
+
+ggplot(ddx_pt_data_missenseonly_withdomains, aes(Vineland_Total_Score))+
+  geom_bar(aes(fill = Domain_Affected), width = 0.9)+
+  geom_vline(xintercept = 66, linetype = "dashed", color = "gray")+
+  labs(x ="Vineland Total Score, DDX3X affected protein domains color-coded")
+```
+
+
+## Conclusions
+WHAT WOULD YOU CONCLUDE FROM YOUR NEW OBSERVATION?
+DDX3X Syndrome patients with missense mutations seem to have more severe clinical findings in the subset of clinical findings I investigated. Most missense mutations (with patient Vineland scores) fall within the helicase C-terminal domain, and most of patients bearing those mutations are below the standard score for Vineland.
+  
+## Prioritized follow-up studies
+WHAT WOULD YOU DO TO FOLLOW-UP?
+Since the release of this paper in the spring, at least 50 more patients have been diagnosed and tested--it would be very informative to be able to include their data in this analysis as well. I'd also be interested (and have started to) follow up on additional clinical features (many of which are included in this dataset). Also, a number of patients in this dataset are missing Vineland scores, among other clinical data--it'd be interesting to expand the dataset to include all of their clinical findings if possible.
+
+## Acknolwedgements
+SHOUT OUTS FOR PACKAGES, INSPIRATION, CLASSMATES, OR EVEN Y0UR INSTRUCTORS! ;]
+For data and inspiration: thanks to clinician Elliot Sherr, MD, and all the coauthors on the recent Neuron paper out of our lab: (Lennox AL, Hoye ML, Jiang R, Johnson-Kerner BL, Suit LA, Venkataramanan S, Sheehan CJ, Alsina FC, Fregeau B, Aldinger KA, Moey C, Lobach I, Afenjar A, Babovic-Vuksanovic D, Bézieau S, Blackburn PR, Bunt J, Burglen L, Campeau PM, Charles P, Chung BHY, Cogné B, Curry C, D'Agostino MD, Di Donato N, Faivre L, Héron D, Innes AM, Isidor B, Keren B, Kimball A, Klee EW, Kuentz P, Küry S, Martin-Coignard D, Mirzaa G, Mignot C, Miyake N, Matsumoto N, Fujita A, Nava C, Nizon M, Rodriguez D, Blok LS, Thauvin-Robinet C, Thevenon J, Vincent M, Ziegler A, Dobyns W, Richards LJ, Barkovich AJ, Floor SN, Silver DL, Sherr EH. Pathogenic DDX3X Mutations Impair RNA Metabolism and Neurogenesis during Fetal Cortical Development. Neuron. 2020 May 6;106(3):404-420.e8. doi: 10.1016/j.neuron.2020.01.042. Epub 2020 Mar 4. PMID: 32135084; PMCID: PMC7331285.)
+
+For packages: Matthew Hirschey, Hadley Wickham,
+
+For troubleshooting: StackOverflow, generally the people of the internet
+
+For teaching me: course instructors and classmates
+
+#Session information for provenance and reproducibility
+```{r}
+#PROBABLY BEST TO LEAVE THIS HERE, BUT NO NEED TO PRINT IN THE FINAL REPORT.
+utils:::print.sessionInfo(sessionInfo()[-8]) 
+#You can remove an item from sessionInfo(), which is a list with a class attribute, by printing the resulting object omitting one of the list items (omitted list of packages installed, but not loaded)
+```
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```

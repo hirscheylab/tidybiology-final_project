@@ -1,0 +1,248 @@
+---
+title: 'Drug Screening for Muscular Dystrophy' 
+author: "Zachary Fralish"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  html_document:
+    toc: true 
+    toc_float: 
+      collapsed: false 
+      smooth_scroll: false 
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+#Get all the necessary libraries
+library("readxl")
+library(tidyverse)
+library(tidybiology)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(fontawesome)
+library(ggpubr)
+library(hrbrthemes)
+library(viridis)
+library(ggsignif)
+library(gghalves)
+```
+
+
+<br>
+
+# **Background and Data ** `r fa("prescription")`
+<br>
+![](ExperimentalDesign.jpg)
+
+
+<br>
+<br>
+
+
+```{r, echo=FALSE}
+#get data
+my_data <- read_excel("DrugTests.xlsx")
+```
+
+#### Quick View of the Data 
+```{r, echo=FALSE}
+#display the data
+head(my_data)
+dim(my_data)
+```
+
+<br>
+<br>
+<br>
+<br>
+<br>
+
+# **Data Presentation** `r fa("chart-area")`
+
+## **Goal 1:** _Present all the data_
+```{r, echo=FALSE}
+#Make the actual plot of the data
+ggplot(my_data) +
+  #To visualize all the variables, in addition to showing the donor and force production on the x and y axises respectively, I showed the treatment based upon the box fill and the experiment by the color on the outside of the plot.
+ aes(x = Donor, y = SpForce, fill = Treatment, colour = Experiment) +
+  #make it specifically a box plot
+ geom_boxplot(shape = "circle") +
+ scale_fill_hue(direction = 1) +
+ scale_color_hue(direction = 1) +
+  #add in the data points
+ geom_jitter(color="black", size=0.6, alpha=0.9) +
+  #label all the axises
+ labs(title = "Direct Comparison Between Treatments and Experiments",
+ xaxis = "Donor",
+ yaxis = "Specific Force") +
+ ylab("Specifc Force") +
+  #Make the plot a little bit prettier
+ theme_minimal() +
+ theme(plot.title = element_text(face = "bold", hjust = 0.5), axis.title.y = element_text(size = 10L, 
+ face = "bold"), axis.title.x = element_text(size = 10L, face = "bold"))
+```
+
+<br>
+So this presents all the data. However, this graph is **very busy** `r fa("thumbs-down")`, so I wanted to visualize just the important message of the data; how do the treatments affect diseased muscle vs. healthy muscle? 
+<br>
+<br>
+<br>
+<br>
+
+
+## **Goal 2:** _Focus the Data_
+```{r, echo=FALSE}
+ggplot(my_data) +
+  #note this time the x axis is diagnosis and the experiment group is removed to simplify the graph. Also no data points
+ aes(x = Diagnosis, y = SpForce, colour = Treatment) +
+ geom_boxplot(shape = "circle", fill = "#112446") +
+ scale_color_hue(direction = 1) +
+ labs(title = "Presentation with Diagnosis instead of Donor",
+ xaxis = "Diagnosis",
+ yaxis = "Specific Force") +
+ ylab("Specifc Force") +
+ theme_minimal() +
+ theme(plot.title = element_text(face = "bold", hjust = 0.5), axis.title.y = element_text(size = 10L, 
+ face = "bold"), axis.title.x = element_text(size = 10L, face = "bold"))
+```
+
+
+<br>
+This graph more clearly depicts the takeaway message. However, considering how important  treatment is to the experiment, I wanted to move that to the x-axis. Additionally, this graph does not display significance. 
+<br>
+<br>
+<br>
+<br>
+
+## **Goal 3:** _Split Graph and Run Statistics_
+
+```{r, echo=FALSE}
+#Make a dataset with the diseased bundles
+diseased <- my_data %>% 
+  filter(Diagnosis == 'D')
+
+#Make a dataset with the healthy bundles
+Healthy <- my_data %>% 
+  filter(Diagnosis == 'H')
+```
+
+```{r, echo=FALSE}
+
+#First I am doing the disease plot, it is mostly the same as the previous graph other than the statistics and moving the treatments to the x axis
+ggplot(diseased) +
+ aes(x = Treatment, y = SpForce) +
+ geom_boxplot(shape = "circle", fill = "#112446") +
+ ylim(1, 6) +
+ labs(title = "Diseased Myobundles") +
+ theme_minimal() +
+  #Here I run an anova on the data first to see if there is an overall significance
+ stat_compare_means(method = "anova") +
+  #Then I see if the treated groups are significant compared to the control group specifically
+ stat_compare_means(label = "p.signif", method = "t.test",
+                     ref.group = "CTRL") +
+ ylab("Specifc Force") +
+ theme(plot.title = element_text(face = "bold", hjust = 0.5), axis.title.y = element_text(size = 10L, 
+ face = "bold"), axis.title.x = element_text(size = 10L, face = "bold"))
+
+
+#Here is the healthy plot, pretty much the same as the diseased plot but with the healthy data 
+ggplot(Healthy) +
+ aes(x = Treatment, y = SpForce) +
+ geom_boxplot(shape = "circle", fill = "#112446") +
+ ylim(1, 6) +
+ labs(title = "Healthy Myobundles") +
+ stat_compare_means(method = "anova") +
+ stat_compare_means(label = "p.signif", method = "t.test",
+                     ref.group = "CTRL") +
+ ylab("Specifc Force") +
+ theme_minimal() +
+ theme(plot.title = element_text(face = "bold", hjust = 0.5), axis.title.y = element_text(size = 10L, 
+ face = "bold"), axis.title.x = element_text(size = 10L, face = "bold"))
+```
+
+
+<br>
+Now, this graph shows there is a statistically significant improvement in only the diseased muscle and not the healthy. However, it will be useful to directly compare these graphs side-by-side, indicate the distribution more clearly, and make the graph more aesthetically pleasing.
+<br>
+<br>
+<br>
+<br>
+
+## **Goal 4:** _Graph Side-By-Side, Incorporate Violin Plots, and Aesthetics_
+<br>
+```{r, figures-side, fig.show="hold", out.width="50%", echo=FALSE}
+#the extra in the header allows for the graphs to be side by side
+
+
+#so now we make the plot with it being extra pretty
+ggplot(diseased) +
+ aes(x = Treatment, y = SpForce, fill = Treatment) +
+ geom_half_boxplot(lwd = 0.8, alpha=0.3) +
+  #Set the y-axis limits so the two graphs match and there is extra room to put the significance on the graph without it being too crowded
+ ylim(1, 7) +
+ labs(title = "Diseased Myobundles") +
+  #add a nice color scheme
+ scale_fill_viridis(discrete = TRUE, alpha=0.6) +
+  #make the graph more aesthetically pleasing
+ theme(plot.title = element_text(size = 16L, face = "bold", hjust = 0.5), axis.title.y = element_text(size = 12L, 
+ face = "bold"), legend.position ="none", axis.title.x = element_text(size = 12L, face = "bold"), 
+ axis.text.x = element_text(face="bold", color="#993333", size=10), axis.text.y = element_text(face="bold", color="#993333", size=10)) + 
+ ylab("Specifc Force") +
+  #run stats again the same way
+ stat_compare_means(method = "anova", label.x = 0.8, label.y = 7) +
+ stat_compare_means(label = "p.signif", method = "t.test",
+                     ref.group = "CTRL") +
+  #also show half the data as a violin plot on the right side
+  geom_half_violin(side = "r")
+
+#this is pretty much the same as the diseased just with the healthy data
+ggplot(Healthy) +
+ aes(x = Treatment, y = SpForce, fill = Treatment) +
+ geom_half_boxplot(lwd = 0.8, alpha=0.3) +
+ ylim(1, 7) +
+ labs(title = "Healthy Myobundles") +
+ scale_fill_viridis(discrete = TRUE, alpha=0.6) +
+ theme(plot.title = element_text(size = 16L, face = "bold", hjust = 0.5), axis.title.y = element_text(size = 12L, 
+ face = "bold"), legend.position ="none", axis.title.x = element_text(size = 12L, face = "bold"), 
+ axis.text.x = element_text(face="bold", color="#993333", size=10), axis.text.y = element_text(face="bold", color="#993333", size=10)) + 
+  ylab("Specifc Force") +
+ stat_compare_means(method = "anova", label.x = 0.8, label.y = 7) +
+ stat_compare_means(label = "p.signif", method = "t.test",
+                     ref.group = "CTRL") +
+  geom_half_violin(side = "r")
+
+```
+
+
+<br>
+To show the data side-by-side, I added (figures-side, fig.show="hold", out.width="50%") into the header of the code. The violin plot adds an additional view of the distribution. Finally, the viridis color scheme and adjustments of labels makes the data more visually appealing. 
+<br>
+<br>
+<br>
+
+
+# **Conclusions** `r fa("book-open")`
+
+Ultimately, treatment with both dantolene and vamorolone augment force generation of diseased engineered muscle up to that of healthy tissues. Neither treatment augments force production in healthy tissues. This suggests that these drug treatments repair specific disease deficits instead of improving overall tissue functionality.
+
+<br>
+<br>
+
+# **Prioritized Future Studies** `r fa("microscope")`
+
+Although these treatments are promising, they only analyze function of these tissues. Next, these tissues should be structurally analyzed to see if the treatments repair structural issues associated with the membrane and/or contractile unit of the muscle in the diseased engineered muscle tissues.
+
+<br>
+<br>
+
+# **Acknowledgements**  `r fa("thumbs-up")`
+
+
+Thank you to Dr. Alastair Khodabukus and the Bursac lab for their efforts in setting up the myobundle system and supporting this research. Thank you to Dr. Hirschey, Akshay, Devang, and Junqi for teaching this course and being so helpful during office hours. Thank you to the creators of R, ggplot, and the tidyverse for making data visualization more accessible and the creators of font awesome for the icons. Finally thank you to my funding sources.
+
+<br>
+
+### Funding `r fa("money-bill-wave")`
+
+![](Acknowledgements.jpg)

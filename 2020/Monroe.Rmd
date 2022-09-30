@@ -1,0 +1,154 @@
+---
+title: "CMB Module Markdown"
+output: html_document
+df_print: paged
+author: "Monroe"
+date: "Nov 16, 2020"
+
+---
+### Load Libraries 
+
+I will be using libraries discussed in this course including ggplot2, dplyr, and reader. I also used a library called kableExtra, which specializes in making tables.
+```{r setup, include=FALSE}
+
+library(tidyverse)  
+library(ggplot2)  
+library(dplyr)  
+library(readr)
+library(kableExtra)
+
+```
+
+### Import Data  
+
+Loading datasets including subcellular location and disease associated genes for both Autism Spectrum Disorders (ASD) and Schizophrenia (SCZ). Final dataset is defining a subset of the gene ontologies listed in the subcell dataset.  
+
+```{r data, include=FALSE}
+
+data("subcell")  
+data("id")  
+ASD <- read_tsv("data/ASD.tsv")
+SCZ <- read_tsv("data/SCZ.tsv")
+AmiGO2_GOs_Definitions <- read_csv("data/AmiGO2_GOs_Definitions.csv")
+
+```
+
+### Rolling Around  
+
+   I first investigated subcellular location and gene ontology. I noticed that some gene ontologies had much larger counts than others.  
+
+
+
+```{r subcell GO, echo=FALSE, fig.width=5, fig.height=4.5, fig.align='center'}
+
+ggplot(data = subcell) +
+  geom_count(mapping = aes(x = location, y = go_term)) +
+  ggtitle("Subcellular Localization of GOs")+
+  xlab("Subcellular Location") +
+  ylab("Gene Ontology") +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 30, hjust = 1),
+        axis.text.y = element_blank(),
+        plot.title = element_text(hjust = 0.5))
+
+```
+
+   This makes a lot of sense... proteins with simmilar functions end up in the same place.  
+
+   But what about genes in complex diseases? ASD and SCZ are known to have several genes implicated with disease risk. What can their gene ontologies show us?
+
+
+### Data Wrangling 
+
+   I found two datasets of disease associated proteins for ASD and SCZ by specifying these diseases in a UniprotKB search. I wanted to join my disease genes of interest to the subcellular localization data. As an example, I ran into some snarls with the column names. I was eventually able to rename them by referencing their location rather than their original labels. It was then very easy to combine my datasets with the subcellular location dataset.
+
+```{r rename}
+
+names(ASD)[1] <- "entry"
+names(ASD)[2] <- "gene_name"
+  
+ASD_subcell <- inner_join(x = subcell, y = ASD, by = "gene_name") 
+
+```
+
+```{r rename2, echo=FALSE}
+
+names(SCZ)[1] <- "entry"
+names(SCZ)[2] <- "gene_name"
+  
+SCZ_subcell <- inner_join(x = subcell, y = SCZ, by = "gene_name") 
+
+names(AmiGO2_GOs_Definitions)[1] <- "go_term"
+names(AmiGO2_GOs_Definitions)[2] <- "ontology"
+  
+```
+
+   Now I could ask whether these disease associated proteins localized to particular subcellular regions.  
+
+
+### Final Plot 
+
+```{r disease localization, echo=FALSE, fig.width=5, fig.height=5, fig.align='center'}
+
+ggplot() +
+geom_count(data = ASD_subcell, aes(x = location,y = go_term), color='violetred2', alpha = 0.65) +
+geom_count(data = SCZ_subcell, aes(x = location,y = go_term), color='dodgerblue', alpha = 0.4) + 
+
+    ggtitle("Localization of ASD and SCZ Proteins")+
+  xlab("Subcellular Location") +
+  ylab("Gene Ontology") +
+  labs(size = "ASD - Pink 
+SCZ - Blue
+Both - Purple") +
+  theme_minimal()+
+  theme(
+        axis.text.x = element_text(angle = 30, hjust = 1),
+        axis.ticks.y = element_blank(),
+        plot.title = element_text(hjust = 0.5)) +
+        scale_size_area(max_size = 16)
+
+```
+
+  
+  
+   It seemed that many of the gene ontologies were shared between these two data sets. Notably, cytoplasm and nucleus contained ontologies with the most proteins implicated in both diseases. This could be due to larger numbers of entries associated with these subcellular locations.  
+
+   The membrane contained the largest number of ontologies, and of individual proteins, shared between the two disease datasets. This suggests that within these datasets, the membrane may be common ground for pathways implicated in both ASD and SCZ.  
+
+
+### Further Investigation
+
+   I started investigating further by looking at the ontologies with the largest number of genes in them (located at the cytoplasm and nucleus). I looked up the GO codes for these on [AmiGO2](http://amigo.geneontology.org/amigo), an online project documenting gene ontologies. These big clusters turned out to be ontologies for "cytoplasm" and "nucleus" respectively. 
+
+   I was still hoping to find more information from the categorization of the ontologies themselves, so I also looked to ontologies associated with the membrane. This subcellular location had the largest number of different ontologies shared between the two disease associated datasets. 
+
+   Here are all of the ontologies I had looked into:  
+
+
+```{r GO Table, echo=FALSE}
+
+AmiGO2_GOs_Definitions %>%
+  kable() %>%
+  kable_styling()
+
+```
+  
+  
+   One of the GOs associated with the membrane turned out to be an ontology called "synapse". This was extremely exciting to me, as I previously studied synapse biology and knew that synaptic disregulation is shown to be implicated in both ASD and SCZ. 
+
+   Looking further I saw that this ontology was represented by a single protein present in both disease associated datasets. This protein, synapsin 2, is localized to the cytosolic side of synaptic vesicles. It's been [published](https://www.nature.com/articles/ncomms2515) that synapsin 2 regulates neurotransmitter release. I also found publications linking synapsin 2 with both [ASD](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3857945/) and [SCZ](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2169360/).  
+
+
+###      Reflection and Future Directions
+
+   My biggest goal here was to exercise my ability to use R and reinforce concepts that I had learned in the course. The datasets I was using to represent ASD and SCZ had their limitations; neither was an exhaustive list of disease associated proteins. With more robust data, a pipeline like this could assist in highlighting organelles or regions of a cell where several mechanisms of dysregulation converge to create similar disease outcomes.  
+
+
+###      Acknoledgements
+
+   Thanks to Matthew Herschey and Akshay Bareja for making an engaging module and guiding me when I was stuck. This project also wouldn't be possible without a community of R users making the many forum posts and guides that I used to complete this project. Thanks to Akshay in particular for being online over the final weekend to help answer questions; you gave me some good direction. This course took away a lot of the fear of coding for me, so I'm very thankful!
+
+
+
+
+
