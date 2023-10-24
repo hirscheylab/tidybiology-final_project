@@ -1,0 +1,69 @@
+---
+title: "ABartlett_TidyBioPresentation_7AADEarlyInfection"
+output: html_document
+message: FALSE
+warning: FALSE
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+> EBV infection of Primary B Cells
+
+This dataset was generated from infecting isolated B Cells with EBV strain B95.8. At the time of infection the cells were treated with 2 different drugs, either separately or together. Cell proliferation and cell death was evaluated via flow cytometry. 
+
+```{r include=FALSE}
+# install.packages("devtools")
+# devtools::install_github("matthewhirschey/tidybiology")
+library(tidybiology)
+library(tidyverse)
+library(paletteer)
+ALI05_7AAD_Normalized <- read_csv("Data/ALI05_7AAD_Normalized.csv")
+glimpse(ALI05_7AAD_Normalized)
+```
+
+## Proliferating B Cells
+```{r, message=FALSE}
+ALI05_7AAD_Normalized %>%
+dplyr::filter(Sample == "Tx1284") %>%
+filter(DPI %in% c(4,7,10,14)) %>%
+ggplot(aes(DPI,Norm_BCellProlifs))+
+  geom_smooth(aes(colour = Treatment))+
+  theme_bw()+
+  labs(x = "Days Post Infection", y = "Proliferating B Cells")+
+  labs(title = "Donor Tx1284")
+```
+
+## Dead B Cells
+```{r}
+ALI05_7AAD_Normalized %>%
+filter(Sample == "Tx1284") %>%
+filter(DPI %in% c(4,7,10,14)) %>%
+ggplot(aes(DPI,Norm_DeadBCells))+
+  geom_point(aes(colour = Treatment))+
+  theme_bw()+
+  scale_color_paletteer_d("LaCroixColoR::Lime")+
+  labs(x = "Days Post Infection", y = "Dead B Lymphocytes")+
+  labs(title = "Donor Tx1284")
+```
+
+## Do dead proliferating B cells correlate with dead singlets?
+```{r}
+ALI05_7AAD_Normalized %>%
+filter(Sample %in% c("Tx1284","Tx1285")) %>%
+filter(DPI %in% c(4,7,10,14)) %>%
+ggplot(aes(Norm_DeadSinglets,Norm_DeadBCellProlifs))+
+  geom_point(aes(colour = Treatment))+
+  theme_bw()+
+  scale_color_paletteer_d("nord::aurora")+
+  labs(x = "Dead Singlets", y = "Dead B Lymphocytes")+
+  labs(title = "Donor Tx1284 and Tx1285")
+```
+
+
+
+
+
+
+

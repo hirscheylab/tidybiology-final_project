@@ -1,0 +1,202 @@
+---
+title: "Programming cell-free biosensors with DNA strand displacement circuits: AND GATE"
+output: html_document
+date: "2022-11-03"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(matrixStats)
+library(gridExtra)
+
+```
+
+## Introduction
+
+![**Cell-free biosensors enhanced by DNA strand displacement circuits.**](and_gate_exp.png)
+
+Cell-free biosensors are key tools for monitoring human and environmental health. In Jung et al, authors coupled a previously built RNA aptamer-based biosensor platform with toehold-mediated strand displacement to construct tunable circuits with controllable reaction kinetics. Below, I analyze their AND circuit, which is activated when both tetracycline and ZnSO4 are present. 
+
+
+```{r response, include=FALSE}
+
+#read in excel sheet with the data frame
+response <- read.csv("and_gate_fluorescence.csv")
+
+#relabel column names to make sense of the data
+response <- response %>% 
+  rename("no_input_rep_" = 2:4,  "tet_rep_" = 5:7, "ZnSO4_rep_" = 8:10, "both_rep_" = 11:13) %>%
+  rename("Time(min)" = 1)
+
+#delete the row with replicate labels since column headers are updated to reflect replicate data
+response <- response %>%
+  filter(!row_number() %in% c(1,2))
+
+#mutates all characters to numeric for future calculations
+response <- response %>% mutate_if(is.character,as.numeric)
+```
+
+## Looking into the original data frame with glimpse
+
+This data frame has 13 columns which constitute fluorescence measured in time, and three replicate measurements for each: no input, tetracycline (tet) input, ZnSO4 input, and both inputs.
+
+```{r, echo=FALSE}
+
+#take a look at the data frame with glimpse
+
+glimpse(response)
+
+```
+
+```{r,include=FALSE}
+#extract columns from response based on column name string 
+no_input <- response %>% 
+  select(contains("no_input")) 
+
+tet <- response %>% 
+  select(contains("tet"))
+
+ZnSO4 <- response %>% 
+  select(contains("ZnSO4"))
+
+both <- response %>% 
+  select(contains("both"))
+
+#create a new data frame with the time column and averages for all replicates for all conditions
+agg_response <- data.frame(response[,1], rowMeans(no_input), rowMeans(tet), rowMeans(ZnSO4), rowMeans(both))
+
+#rename column names in the new data frame 
+colnames(agg_response) <- c("Time_min", "av_no_input", "av_tet", "av_ZnSO4", "av_both")
+```
+
+## Looking into the simplified data frame
+
+Here, all replicates are averaged to simplify plotting in the next step.
+
+```{r, echo=FALSE}
+
+glimpse(agg_response)
+
+```
+
+
+## Visualizing fluorescence response of the AND switch to ligands
+
+Only when both ligands are added into the reaction fluorescence intensity increases exponentially. When either one of the ligands is added alone, fluorescence intensity tracks close to the no input control.Replicate errors are insignificant and support the conclusion.
+
+```{r plots, echo=FALSE}
+
+#plotting experimental line graphs for each condition
+plot_1 <-ggplot() +
+   geom_line(data = agg_response, aes(x = Time_min, y = av_no_input, color = "No input")) +
+   geom_line(data = agg_response,aes(x = Time_min, y = av_tet, color = "Tetracycline")) +
+   geom_line(data = agg_response,aes(x = Time_min, y = av_ZnSO4, color = "ZnSO4")) +
+   geom_line(data = agg_response,aes(x = Time_min, y = av_both, color = "Both")) +
+   xlab("Time (min)") +
+   ylab("MEF (uM fluorescein)") +
+   ggtitle("AND Switch Experimental Response to Ligands (Tetracycline and ZnSO4)") +
+   theme(plot.title = element_text(hjust = 0.5))+
+   scale_color_manual(name = "Conditions", values = c("No input" = "red", "Tetracycline" = "green", "ZnSO4" = "purple", "Both" = "blue")) +
+   theme_bw()
+
+#adding error fill to each line graph by replicate average±standard deviation
+plot_1 + 
+   geom_ribbon(data = agg_response, aes(ymin=av_no_input-apply(no_input, 1, sd), ymax=av_no_input+apply(no_input, 1, sd), x= Time_min, fill = "band"), alpha = 0.1 ,fill = "red")+
+  geom_ribbon(data = agg_response, aes(ymin=av_tet-apply(tet, 1, sd), ymax=av_tet+apply(tet, 1, sd), x= Time_min, fill = "band"), alpha = 0.1, fill = "green")+
+  geom_ribbon(data = agg_response, aes(ymin=av_ZnSO4-apply(ZnSO4, 1, sd), ymax=av_ZnSO4+apply(ZnSO4, 1, sd), x= Time_min, fill = "band"), alpha = 0.1, fill = "purple")+
+  geom_ribbon(data = agg_response, aes(ymin=av_both-apply(both, 1, sd), ymax=av_both+apply(both, 1, sd), x= Time_min, fill = "band"), alpha = 0.1, fill = "blue")
+   
+```
+
+
+```{r, include=FALSE}
+
+#importing data from solved ODE model for each gate
+solved <- read_csv("AND.csv")
+
+solved$Time = seq(from = 0, to=499, by =1)
+
+colnames(solved) <- c("no_input", "ZnSO4", "tet", "both", "Time")
+```
+
+## Looking at solved ODE model data imported from Python
+
+Chemical reactions for the full deterministic model were mapped out in the paper. By making assumptions such as quasi-steady state, authors were able to generate plots using Python's ODE solver. I reran their code to obtain numerical data. Below you can see what the data looks like. 
+
+```{r, echo=FALSE}
+
+glimpse(solved)
+
+```
+
+## Plotting solved ODE model to predict circuit behavior
+
+AND switch model trend follows the experimental trend up to ~300s, at which point Tetracycline alone is as effective in turning on gene expression. 
+
+```{r, echo=FALSE}
+
+#plotting model response
+plot_2 <-ggplot() +
+   geom_line(data = solved, aes(x = Time, y = no_input, color = "No input")) +
+   geom_line(data = solved,aes(x = Time, y = tet, color = "Tetracycline")) +
+   geom_line(data = solved,aes(x = Time, y = ZnSO4, color = "ZnSO4")) +
+   geom_line(data = solved,aes(x = Time, y = both, color = "Both")) +
+   xlab("Time (min)") +
+   ylab("MEF (uM fluorescein)") +
+   ggtitle("AND Switch Model Response to Ligands (Tetracycline and ZnSO4)") +
+   theme(plot.title = element_text(hjust = 0.5))+
+   scale_color_manual(name = "Conditions", values = c("No input" = "red", "Tetracycline" = "green", "ZnSO4" = "purple", "Both" = "blue")) +
+   theme_bw()
+
+plot_2
+
+```
+
+
+## Overlaying plots for each different condition 
+
+Black: Experimental ; 
+Red: Model
+
+```{r, echo = FALSE}
+
+#overlaying exprerimental and model charts
+plot3 <-ggplot()+
+    geom_line(data = solved, aes(x = Time, y = no_input, color = 'red')) +
+    geom_line(data = agg_response, aes(x = Time_min, y = av_no_input))+
+    ylab("No input") + theme(legend.position = "none")
+
+plot4 <-ggplot()+
+         geom_line(data = solved, aes(x = Time, y = tet,color = 'red')) +
+        geom_line(data = agg_response, aes(x = Time_min, y = av_tet))+
+        ylab("Tetracycline") +theme(legend.position = "none")
+
+plot5 <- ggplot()+
+         geom_line(data = solved, aes(x = Time, y = ZnSO4, color='red')) +
+         geom_line(data = agg_response, aes(x = Time_min, y = av_ZnSO4))+
+         ylab("ZnSO4") +theme(legend.position = "none")
+
+plot6 <- ggplot()+
+         geom_line(data = solved, aes(x = Time, y = both, color = 'red')) +
+         geom_line(data = agg_response, aes(x = Time_min, y = av_both))+
+         ylab("Both") + theme(legend.position = "none")
+
+grid.arrange(plot3, plot4, plot5, plot6, nrow=2, ncol=2)
+```
+
+
+## Conclusion
+Tunable gene expression switches with logic gate configurations can effectively control protein output in experimental settings. However, prediction of protein expression is challenging due to assumptions made for easy calculation. A good follow-up to this study would be to track the experimental response for longer to determine if the gate will break after a certain time point.
+
+## Reference 
+
+Jung, J.K., Archuleta, C.M., Alam, K.K. et al. Programming cell-free biosensors with DNA strand displacement circuits. Nat Chem Biol 18, 385–393 (2022). https://doi.org/10.1038/s41589-021-00962-9
+
+
+## Session Information
+```{r, echo = FALSE}
+sessionInfo(package = NULL)
+```
+

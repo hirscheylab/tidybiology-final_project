@@ -1,0 +1,89 @@
+---
+title: "Quasi-species in AAV Replication and Packaging Machinery"
+author: "Robert Fusco"
+output: html_document
+date: "November 4, 2022"
+---
+
+```{r setup, error=FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Background
+
+Adeno-associated virus (AAV) is a common gene therapy vector used to deliver functional copies of genes *in vivo*. In recent years, several groups have evolved capsid genes to alter the tropism of naturally occuring AAVs. In a recent workshop, one group demonstrated that two AA changes in one of the non-structural proteins resulted in complete loss of function in **biochemical** assays. I was interested in creating a small library of amino acid changes at these sites to investigate their impact on yield from production runs. Upon analyzing the data, some unexpected findings were uncovered, namely the presence of quasispecies in our production run.
+
+``` {r, include=FALSE}
+
+library("ggplot2")
+library("Biostrings")
+library("ggmsa")
+library("ape")
+library("dplyr")
+library("phylotools")
+library("tidyverse")
+Library_raw <- read.csv("C:/Users/fusco/OneDrive/Documents/Fall 2022/tidybio/Helicase_NGS.csv")
+Library_dataframe <- data.frame(Library_raw)
+number_entries<- Library_dataframe %>% dplyr::filter(p_value<0.05) %>% count()
+```
+
+## Experimental Walkthrough
+
+Site-directed mutagenesis was performed at two sites within our protein of interest. Virus was serial passaged, and amplicon sequencing was performed to identify enriched mutants. Below is a `glimpse` of the data. 
+
+## Raw Data
+
+```{r, echo=FALSE}
+glimpse(Library_raw)
+```
+
+## Investigating Fold-Enrichment
+To better understand these data, sequences were plotted by start & end read counts. Size denotes fold enrichment, while color indicates whether or not these were intended (**NEW**) or not intended (**WT**) sequences.
+
+```{r echo=FALSE, results='hide',message=FALSE, warning=FALSE, fig.align = 'center'}
+quasi.data <- read_csv("p-to-2-round-evol.csv")
+ggplot(quasi.data,
+       aes(log(start_reads), log(end_reads)))+
+  geom_point(aes(color=WT, size= fold_change, alpha=0.5))+
+  theme_bw()+
+  scale_color_manual(values = c("#C51B7DFF", "#35978FFF"))+
+  guides(alpha=FALSE)+
+  labs(x="Log(Starting Reads)", y="Log(Ending Reads)", color="Intended Mutation", size= "Fold Change Enrichment")
+```
+
+## Multiple Sequence Alignment of Top Hits
+
+Despite this heterogenaity, I was interested in looking at the enriched hits with a p-value < 0.05.**There were `r number_entries` sequences showing significant enrichment.** Below is a multiple sequence alignment:
+
+```{r echo=FALSE, results='hide',message=FALSE, warning=FALSE, fig.align = 'center'}
+Library_dataframe_significant <- 
+  Library_dataframe %>% 
+  filter(p_value<0.05) %>% 
+  arrange(desc(fold_change)) %>% 
+  mutate(rank= paste0("Rank_", 1:50)) %>% 
+  relocate(rank, .before = sequence_aa) %>% 
+  rename(seq.name=rank) %>% 
+  rename(seq.text=sequence_aa)
+For_Fasta <- 
+  Library_dataframe_significant %>% 
+  select(seq.name, seq.text)
+Dat2Fa <- dat2fasta(For_Fasta, outfile = "Library.fasta")
+Helicase_Library_fasta <- readAAStringSet("Library.fasta")
+Helicase_Library_fasta
+ggmsa(Helicase_Library_fasta, 1, 83, seq_name=TRUE) + geom_seqlogo()
+```
+
+## Conclusions & Future Directions
+While not many intended mutants appeared in the significantly enriched hits, there appears to be significant heterogeneity in our protein of interest. Consequently, we will select several of the top hits and evaluate them for function compared to the wild-type protein. Further, we will model our protein and attempt directed evolution of critical residues.
+
+## Acknowledgements
+I would like to thank the Rstudio team for the `tidyverse` package, Dr. Jinlong Zhang for the `phylotools` package, Dr. Guangchuang Yu for the `ggmsa` package. I would also like to thank Dr. Matt Hirschey and the Tidybio TAs for their instruction over the past two weeks. Lastly, I would like to thank my colleagues and PI in the [Asokan Lab](www.asokanlab.org). 
+
+<center>
+![](C:/Users/fusco/Downloads/Asokan-Lab.jpg)
+</center>
+
+## Session information for provenance and reproducibility
+```{r echo=FALSE}
+utils:::print.sessionInfo(sessionInfo()[-8]) 
+```

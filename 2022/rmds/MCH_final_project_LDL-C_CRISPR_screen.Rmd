@@ -1,0 +1,137 @@
+---
+title: "CRISPR Screen for LDL-C Uptake in a Liver Cancer Cell Line"
+author: "Mia Hamilton"
+date: "2022-11-01"
+output: html_document
+---
+
+```{r setup, include=FALSE, echo=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE, message=FALSE}
+library(ggplot2)
+library(data.table)
+library(tidyverse)
+library(dplyr)
+library(ggrepel)
+library(ggpubr)
+library(corrplot)
+```
+## LDL-C CRISPR Screen Design
+
+![](CRISPR_screen_schematic.png)
+
+## Screen Analysis
+
+Import gRNA Counts
+```{r}
+#import gRNA RPMs
+LDL_522_screen_gRNA_RPM <- fread("/Users/mch47/Desktop/LDL_manuscript/1022_revised_Figure_L/101022_LDL_mageck_revision/522_LDL_gene_lib/mageck_count_tables/522lib_mageck_count_table.txt")
+
+```
+
+
+Calculate gRNA fold-changes for replicates 1-4 (bottom 30% bin / top 30% bin)
+```{r}
+#calculate fold-changes within each replicate
+LDL_522_screen_gRNA_RPM$rep1_FC <- (1+LDL_522_screen_gRNA_RPM$HepG2_522_LDL_b30_rep_1)/(1+LDL_522_screen_gRNA_RPM$HepG2_522_LDL_t30_rep_1)
+
+LDL_522_screen_gRNA_RPM$rep2_FC <- (1+LDL_522_screen_gRNA_RPM$HepG2_522_LDL_b30_rep_2)/(1+LDL_522_screen_gRNA_RPM$HepG2_522_LDL_t30_rep_2)
+
+LDL_522_screen_gRNA_RPM$rep3_FC <- (1+LDL_522_screen_gRNA_RPM$HepG2_522_LDL_b30_rep_3)/(1+LDL_522_screen_gRNA_RPM$HepG2_522_LDL_t30_rep_3)
+
+LDL_522_screen_gRNA_RPM$rep4_FC <- (1+LDL_522_screen_gRNA_RPM$HepG2_522_LDL_b30_rep_4)/(1+LDL_522_screen_gRNA_RPM$HepG2_522_LDL_t30_rep_4)
+
+```
+
+```{r, fig.width=8, fig.height=6, echo = FALSE, warning=FALSE, message=FALSE}
+#plot 522 Gene Screen gRNA fold-change correlation
+ggplot(LDL_522_screen_gRNA_RPM, aes(x=log2(rep2_FC), y=log2(rep3_FC))) +
+  geom_point() +
+  theme_classic()+
+  scale_x_continuous(name="Replicate 1 gRNA log2(fold-change)") +
+  scale_y_continuous(name="Replicate 2 gRNA og2(fold-change)") +
+  stat_cor(method = "pearson", label.x = 3, label.y = -2) +
+  geom_smooth(data = LDL_522_screen_gRNA_RPM, method = "lm", color = "black", se=F,linetype="dashed")+
+  ggtitle("Targeted 522 Gene Screen gRNA Fold-Change Correlation") +
+  theme(legend.position = "none",
+        plot.title = element_text(size=20, hjust = 0.5),
+        axis.title.x = element_text(size=14),
+        axis.title.y = element_text(size=14))
+```
+
+
+Import MAGeCK Gene Summary
+```{r}
+#import MAGeCK results
+LDL_522_screen_volcano <- fread("mageck_test_5.gene_summary.txt")
+```
+
+Clean Data
+```{r}
+
+#find lowest p-value (negative vs. positive enrichment p-val and calculate -log10(pval))
+LDL_522_screen_volcano$neg_log10_pval <- -log10(with(LDL_522_screen_volcano, pmin(LDL_522_screen_volcano$"neg|p-value", LDL_522_screen_volcano$"pos|p-value")))
+
+#switch sign of LFC so gene KOs that decrease LDL-C uptake have negative LFC and gene KOs that increase LDL-C uptake have positive LFC
+LDL_522_screen_volcano$"neg|lfc" <- -LDL_522_screen_volcano$"neg|lfc"
+LDL_522_screen_volcano$"pos|lfc" <- -LDL_522_screen_volcano$"pos|lfc"
+
+#add column to indicate significant increase or decrease in LDL-C
+LDL_522_screen_volcano <- LDL_522_screen_volcano %>% 
+  mutate(Color = case_when(
+    (neg_log10_pval >= 2 & `pos|lfc` < 0) ~ "decrease",
+    (neg_log10_pval >= 2 & `pos|lfc` > 0) ~ "increase",
+    (neg_log10_pval < 2) ~ "NS"
+  ))
+
+#add column to indicate labels for signficant genes
+LDL_522_screen_volcano <- LDL_522_screen_volcano %>% 
+  mutate(label = case_when(
+    `neg|rank` < 20 ~ id,
+    `pos|rank` < 20 ~ id,
+  ))
+
+```
+
+
+```{r, fig.width=8, fig.height=6, echo=FALSE, warning=FALSE}
+ggplot(LDL_522_screen_volcano, aes(x=LDL_522_screen_volcano$"neg|lfc",
+                                   y=neg_log10_pval)) +
+  geom_point(aes(color = Color)) +
+  scale_color_manual(values = c("#EC5F67", "#6699CC", "black")) +
+  theme_classic()+
+  theme(legend.position = "none",
+        plot.title = element_text(size=20, hjust = 0.5),
+        axis.title.x = element_text(size=14),
+        axis.title.y = element_text(size=14)) +
+  scale_x_continuous(name="LDL-C uptake log2(fold-change)",
+                     limits=c(-2.52,2),
+                     breaks = c(-2.5,-2,-1.5,-1,-.5,0,0.5,1,1.5,2)) +
+  scale_y_continuous(name="-Log10(p-value)",
+                     limits=c(0,8.1),
+                     breaks = c(0,2,4,6,8)) +
+  geom_hline(yintercept=2,
+             color="black",
+             linetype="dashed",
+             size = 1) +
+  geom_text_repel(aes(label = label),
+                  nudge_y = 0.3) +
+  annotate("text",
+           x=-1.75, y=4,
+           label= "Gene KO decreases\nLDL-C uptake",
+           size = 6,
+           hjust = 0.5,
+           color = "#EC5F67") +
+  annotate("text",
+           x=1.4, y=4,
+           label= "Gene KO increases\nLDL-C uptake",
+           size = 6,
+           hjust = 0.5,
+           color = "#6699CC")+
+  ggtitle("Targeted 522 Gene Screen Volcano Plot")
+
+```
+
+
