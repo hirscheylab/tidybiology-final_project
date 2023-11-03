@@ -187,6 +187,6 @@ class!
     #> [65] pkgload_1.3.2     rstudioapi_0.15.0 R6_2.5.1          fs_1.6.3
 
 Download [this Rmd
-file](https://github.com/matthewhirschey/tidybiology-final_project/final_project.Rmd)
+file](https://github.com/matthewhirschey/tidybiology-final_project/blob/master/final_project.Rmd)
 or [the
-template](https://github.com/matthewhirschey/tidybiology-final_project/final_project_template.Rmd)
+template](https://github.com/matthewhirschey/tidybiology-final_project/blob/master/final_project_template.Rmd)

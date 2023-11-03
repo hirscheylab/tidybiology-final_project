@@ -167,4 +167,4 @@ utils:::print.sessionInfo(sessionInfo()[-8])
 #You can remove an item from sessionInfo(), which is a list with a class attribute, by printing the resulting object omitting one of the list items (omitted list of packages installed, but not loaded)
 ```
 
-Download [this Rmd file](https://github.com/matthewhirschey/tidybiology-final_project/final_project.Rmd) or [the template](https://github.com/matthewhirschey/tidybiology-final_project/final_project_template.Rmd)
+Download [this Rmd file](https://github.com/matthewhirschey/tidybiology-final_project/blob/master/final_project.Rmd) or [the template](https://github.com/matthewhirschey/tidybiology-final_project/blob/master/final_project_template.Rmd)
